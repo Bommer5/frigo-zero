@@ -122,7 +122,7 @@ async function loadHousehold() {
     sb.from('consumption_log').select('name, outcome, happened_on').eq('household_id', S.hid).gte('happened_on', plusDays(-30))]);
   for (const r of [items, shop, members, log]) if (r.error) throw r.error;
   Object.assign(S, { items: items.data, shop: shop.data, members: members.data, log: log.data });
-  cache(); subscribe();
+  cache(); subscribe(); mirrorImages();
 }
 async function rpc(fn, args) { const { data, error } = await sb.rpc(fn, args); if (error) throw error; return data; }
 
@@ -157,6 +157,7 @@ function render() {
   badge('#badge-stock', S.items.filter((i) => urgency(daysLeft(i.expires_on))).length);
   badge('#badge-shop', S.shop.filter((s) => !s.done).length);
   ({ stock: renderStock, shop: renderShop, stats: renderStats, home: renderHome })[S.view]();
+  warmImages();
 }
 function badge(sel, n) { const b = $(sel); b.hidden = !n; b.textContent = n > 99 ? '99+' : n; }
 $('#btn-me').onclick = () => { S.view = 'home'; render(); };
@@ -190,7 +191,7 @@ function renderStock() {
 function itemRow(i) {
   const [emo, loc] = LOCS[i.location] || LOCS.other;
   return `<div class="row" data-id="${i.id}">
-    <button class="thumb" data-act="${i.image_url ? 'zoom' : 'edit'}" aria-label="${i.image_url ? 'Voir la photo' : 'Modifier'}">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" loading="lazy">` : emo}</button>
+    <button class="thumb" data-act="${i.image_url ? 'zoom' : 'edit'}" aria-label="${i.image_url ? 'Voir la photo' : 'Modifier'}">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" decoding="async">` : emo}</button>
     <button class="main" data-act="edit"><div class="title">${esc(i.name)}</div>
       <div class="sub"><span class="badge ${urgency(i.n)}">${when(i.n, i.date_kind)}</span>${i.quantity > 1 ? `<span>×${i.quantity}</span>` : ''}<span>${loc}${i.note ? ' · ' + esc(i.note) : ''}</span></div></button>
     <div class="row-actions"><button class="eat" data-act="eaten" aria-label="Consommé">${icon('eat')}</button><button class="waste" data-act="wasted" aria-label="Jeté">${icon('trash')}</button></div></div>`;
@@ -202,14 +203,47 @@ $('#stock-list').onclick = (e) => {
   if (!item) return;
   if (act === 'zoom') zoom(item.image_url, item.name); else if (act === 'edit') openItem(item); else consume(item, act);
 };
-// Photo en plein écran (version haute déf. Open Food Facts si dispo, sinon la miniature)
+// Photo en plein écran : miniature tout de suite (déjà en cache), puis version 400 px dès qu'elle arrive
+const bigUrl = (src) => src.replace(/\.(100|200)\.jpg$/, '.400.jpg');
 function zoom(src, name = '') {
   if (!src) return;
-  const im = $('#zoom-img'), full = src.replace(/\.(100|200|400)\.jpg$/, '.full.jpg');
-  im.onerror = () => { im.onerror = null; im.src = src; };
-  im.src = full; im.alt = name; $('#zoom').showModal();
+  const im = $('#zoom-img'), big = bigUrl(src);
+  im.src = src; im.alt = name; $('#zoom').hidden = false;
+  if (big !== src) { const pre = new Image(); pre.onload = () => { if (im.src === src || im.src.endsWith(src)) im.src = big; }; pre.src = big; }
 }
-$('#zoom').onclick = () => $('#zoom').close();
+$('#zoom').onclick = () => { $('#zoom').hidden = true; $('#zoom-img').removeAttribute('src'); };
+// Open Food Facts met 5-10 s à servir une image : on la copie une fois (400 px) dans le bucket Supabase (CDN rapide)
+const OFF_IMG = /^https:\/\/images\.openfoodfacts\.org\//, mirrors = new Map();
+function mirror(code, src) {
+  if (!code || !src || !OFF_IMG.test(src) || !/^\d{6,14}$/.test(code)) return Promise.resolve(src);
+  if (!mirrors.has(code)) mirrors.set(code, (async () => {
+    const path = `${code}.jpg`, pub = sb.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+    if ((await fetch(pub, { method: 'HEAD' })).ok) return pub;
+    const blob = await (await fetch(bigUrl(src))).blob();
+    const { error } = await sb.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+    if (error && !/exists|duplicate/i.test(error.message)) throw error;
+    return pub;
+  })().catch(() => { mirrors.delete(code); return src; }));
+  return mirrors.get(code);
+}
+async function mirrorImages() {
+  const todo = S.items.filter((i) => i.barcode && OFF_IMG.test(i.image_url || ''));
+  for (const i of todo) {
+    const old = i.image_url, url = await mirror(i.barcode, old);
+    if (url === old) continue;
+    await sb.from('items').update({ image_url: url }).eq('household_id', S.hid).eq('image_url', old);
+    S.items.forEach((x) => { if (x.image_url === old) x.image_url = url; });
+    const p = store.get('fz-products') || {}; if (p[i.barcode]) { p[i.barcode].image_url = url; store.set('fz-products', p); }
+    render();
+  }
+}
+// Précharge les versions zoom en arrière-plan (le service worker les garde ensuite en cache)
+const warmed = new Set();
+function warmImages() {
+  const todo = S.items.map((i) => i.image_url && bigUrl(i.image_url)).filter((u) => u && !warmed.has(u));
+  todo.forEach((u) => warmed.add(u));
+  (window.requestIdleCallback || setTimeout)(() => todo.forEach((u) => { new Image().src = u; }));
+}
 $('#pp-img').onclick = () => zoom(img, $('#pp-name').textContent);
 async function consume(item, outcome) {
   vibrate(15);
@@ -262,6 +296,8 @@ function setProduct(p) {
   img = p?.image_url || null; $('#item-form').dataset.code = p?.barcode || '';
   $('#product-preview').hidden = !p?.barcode || !!editing;
   if (p?.barcode) { $('#pp-img').src = img || 'icons/icon-192.png'; $('#pp-name').textContent = p.name || 'Produit inconnu'; $('#pp-code').textContent = p.barcode; }
+  const off = img;
+  if (OFF_IMG.test(off || '')) mirror(p.barcode, off).then((url) => { if (img === off && url !== off) { img = url; $('#pp-img').src = url; } });
 }
 const status = (msg, ok) => { const s = $('#scan-status'); s.textContent = msg; s.classList.toggle('ok', !!ok); };
 $('#sheet-item').addEventListener('close', stopScan);

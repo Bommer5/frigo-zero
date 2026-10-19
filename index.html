@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Frigo Zéro">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org https://cdn.jsdelivr.net https://fastly.jsdelivr.net; media-src 'self' blob:; worker-src 'self'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org https://images.openfoodfacts.org https://cdn.jsdelivr.net https://fastly.jsdelivr.net; media-src 'self' blob:; worker-src 'self'; base-uri 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -202,7 +202,7 @@
 </dialog>
 
 <!-- ============ Feuille : invitation reçue ============ -->
-<dialog id="zoom" class="zoom" aria-label="Photo du produit"><img id="zoom-img" alt=""></dialog>
+<div id="zoom" class="zoom" role="dialog" aria-label="Photo du produit" hidden><img id="zoom-img" alt=""></div>
 <dialog id="sheet-join" class="sheet">
   <div class="sheet-in" style="text-align:center">
     <div class="grabber"></div>
