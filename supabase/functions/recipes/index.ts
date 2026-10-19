@@ -10,6 +10,7 @@ const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
 };
+type Recipe = { title: string; ingredients: { name: string; qty: string; have: boolean }[] };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: cors });
 
 // Liste des modèles gratuits, rafraîchie toutes les 6 h (ils changent souvent).
@@ -28,11 +29,21 @@ async function getFreeModels(): Promise<string[]> {
   return freeModels;
 }
 
-const SYSTEM = `Tu es un chef cuisinier anti-gaspillage. Tu proposes des recettes simples et réalistes en français,
-en utilisant en priorité les produits qui périment bientôt. Les condiments de base (sel, poivre, huile, beurre, farine,
-sucre, épices courantes, eau) sont considérés disponibles. Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
-{"recipes":[{"title":"","emoji":"","minutes":0,"servings":0,"why":"une phrase","used":["produit du frigo utilisé"],
-"missing":["ingrédient à acheter"],"steps":["étape courte"]}]}`;
+const SYSTEM = `Tu es un chef cuisinier anti-gaspillage. Tu proposes des recettes simples et réalistes,
+en utilisant en priorité les produits qui périment bientôt.
+Règles :
+- Écris UNIQUEMENT en français, avec l'alphabet latin (aucun mot dans une autre langue ou un autre alphabet).
+- Donne une quantité précise pour CHAQUE ingrédient, adaptée au nombre de personnes (ex. "200 g", "2", "10 cl", "1 c. à soupe", "1 pincée").
+- "have": true si l'ingrédient vient du stock ou fait partie des basiques toujours disponibles (sel, poivre, huile, beurre,
+  farine, sucre, épices courantes, eau) ; false seulement s'il faut l'acheter.
+- Utilise le nom simple de l'ingrédient (ex. "Lait" plutôt que "Lait entier - Campina").
+- Les étapes reprennent les quantités utiles.
+Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
+{"recipes":[{"title":"","emoji":"","minutes":0,"servings":0,"why":"une phrase",
+"ingredients":[{"name":"","qty":"","have":true}],"steps":["étape courte"]}]}`;
+
+// Rejette les réponses contenant d'autres alphabets (certains modèles gratuits mélangent les langues).
+const FOREIGN = /[\u0400-\u04ff\u0590-\u06ff\u0e00-\u0e7f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -71,34 +82,40 @@ Deno.serve(async (req) => {
     (wish ? `Mon envie : « ${wish} ». Respecte-la au mieux.\n` : 'Je n’ai pas d’idée : surprends-moi avec des recettes variées.\n') +
     `Propose ${howMany} recettes pour ${servings} personne(s). N'utilise pas les produits périmés.`;
 
-  const models = (await getFreeModels()).slice(0, 3);
-  if (!models.length) return json({ error: 'Aucun modèle gratuit disponible pour le moment.' }, 503);
-  const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': 'https://bommer5.github.io/frigo-zero/',
-      'X-Title': 'Frigo Zero',
-    },
-    body: JSON.stringify({
-      models, // OpenRouter bascule sur le suivant si le premier est saturé
-      messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }],
-      temperature: wish ? 0.7 : 0.95,
-      max_tokens: 4000,
-      reasoning: { effort: 'low', exclude: true }, // modèles « qui réfléchissent » : réponse directe
-    }),
-  });
-  const out = await r.json().catch(() => ({}));
-  const text: string = out?.choices?.[0]?.message?.content ?? '';
-  const match = text.match(/\{[\s\S]*\}/);
-  let recipes = [];
-  try { recipes = JSON.parse(match?.[0] ?? '{}').recipes ?? []; } catch { /* réponse invalide */ }
-  if (!recipes.length) {
-    console.error('openrouter', r.status, JSON.stringify(out).slice(0, 500));
-    return json({ error: 'L’IA n’a pas répondu correctement, réessaie dans un instant.' }, 502);
+  const all = await getFreeModels();
+  if (!all.length) return json({ error: 'Aucun modèle gratuit disponible pour le moment.' }, 503);
+  let recipes: Recipe[] = [], model = '';
+  // Jusqu'à 3 essais, chacun avec un groupe de modèles différent.
+  for (let attempt = 0; attempt < 3 && !recipes.length; attempt++) {
+    const models = all.slice(attempt * 3, attempt * 3 + 3);
+    if (!models.length) break;
+    const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://bommer5.github.io/frigo-zero/',
+        'X-Title': 'Frigo Zero',
+      },
+      body: JSON.stringify({
+        models, // OpenRouter bascule sur le suivant si le premier est saturé
+        messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }],
+        temperature: wish ? 0.7 : 0.95,
+        max_tokens: 4000,
+        reasoning: { effort: 'low', exclude: true }, // modèles « qui réfléchissent » : réponse directe
+      }),
+    });
+    const out = await r.json().catch(() => ({}));
+    const text: string = out?.choices?.[0]?.message?.content ?? '';
+    try {
+      const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? '{}').recipes ?? [];
+      if (FOREIGN.test(JSON.stringify(parsed))) { console.warn('langue mélangée', out.model); continue; }
+      recipes = parsed.filter((x: Recipe) => x?.title && Array.isArray(x.ingredients));
+      model = out.model;
+    } catch { console.error('openrouter', r.status, JSON.stringify(out).slice(0, 300)); }
   }
+  if (!recipes.length) return json({ error: 'L’IA n’a pas répondu correctement, réessaie dans un instant.' }, 502);
 
   await admin.from('ai_usage').insert({ user_id: user.id });
-  return json({ recipes: recipes.slice(0, 5), model: out.model, remaining: isAdmin ? null : DAILY_LIMIT - (count ?? 0) - 1 });
+  return json({ recipes: recipes.slice(0, 5), model, remaining: isAdmin ? null : DAILY_LIMIT - (count ?? 0) - 1 });
 });

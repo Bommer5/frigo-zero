@@ -622,6 +622,7 @@ function renderHome() {
 
 // ---------- Recettes IA ----------
 let recipes = null; // dernières recettes affichées
+const missing = (r) => (r.ingredients || []).filter((x) => !x.have);
 function renderRecipes() {
   if (!recipes) $('#r-results').innerHTML = `<div class="empty" style="padding:24px"><div class="big">👩‍🍳</div>
     <p>Écris une envie ou appuie sur <b>Inspire-moi</b> pour des idées avec ton stock.</p></div>`;
@@ -641,9 +642,9 @@ async function askRecipes(wish) {
       <h3><span>${esc(r.emoji || '🍽️')}</span>${esc(r.title)}</h3>
       <div class="meta">⏱ ${+r.minutes || '?'} min · 👥 ${+r.servings || $('#r-servings').value} pers.</div>
       ${r.why ? `<p class="why">${esc(r.why)}</p>` : ''}
-      <div class="ing">${(r.used || []).map((x) => `<span class="have">✓ ${esc(x)}</span>`).join('')}${(r.missing || []).map((x) => `<span>+ ${esc(x)}</span>`).join('')}</div>
+      <ul class="ing-list">${(r.ingredients || []).map((x) => `<li class="${x.have ? 'have' : 'buy'}"><span>${x.have ? '✓' : '+'} ${esc(x.name)}</span><b>${esc(x.qty || '')}</b></li>`).join('')}</ul>
       <details><summary>Voir les étapes</summary><ol>${(r.steps || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details>
-      ${r.missing?.length ? `<button class="btn secondary" data-shop="${i}">${icon('cart')}Ajouter ${r.missing.length} ingrédient${r.missing.length > 1 ? 's' : ''} aux courses</button>` : ''}
+      ${missing(r).length ? `<button class="btn secondary" data-shop="${i}">${icon('cart')}Ajouter ${missing(r).length} ingrédient${missing(r).length > 1 ? 's' : ''} aux courses</button>` : ''}
     </article>`).join('') + (data.remaining != null ? `<p class="note" style="text-align:center">Encore ${data.remaining} demande(s) aujourd'hui.</p>` : '');
   } catch (e) {
     recipes = null;
@@ -655,7 +656,7 @@ $('#r-inspire').onclick = () => { $('#r-wish').value = ''; askRecipes(''); };
 $('#r-results').onclick = async (e) => {
   const i = e.target.closest('[data-shop]')?.dataset.shop; if (i == null) return;
   const b = e.target.closest('[data-shop]'); b.disabled = true;
-  for (const label of recipes[i].missing) await addShop(label);
+  for (const x of missing(recipes[i])) await addShop(x.qty ? `${x.name} (${x.qty})` : x.name);
   b.innerHTML = `${icon('check')}Ajouté à la liste de courses`; vibrate();
 };
 $('#ai-tab-toggle').onchange = (e) => saveProfile({ ai_tab: e.target.checked });
