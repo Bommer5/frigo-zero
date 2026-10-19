@@ -632,7 +632,9 @@ async function askRecipes(wish) {
   out.innerHTML = '<div class="r-loading"><div class="spinner"></div>Le chef réfléchit… (10–30 s)</div>';
   $('#r-go').disabled = $('#r-inspire').disabled = true;
   try {
-    const { data, error } = await sb.functions.invoke('recipes', { body: { household_id: S.hid, wish, servings: +$('#r-servings').value, count: 3 } });
+    const call = sb.functions.invoke('recipes', { body: { household_id: S.hid, wish, servings: +$('#r-servings').value, count: 3 } });
+    const late = new Promise((_, no) => setTimeout(() => no(new Error('Le chef met trop de temps à répondre, réessaie dans un instant.')), 90_000));
+    const { data, error } = await Promise.race([call, late]);
     if (error) {
       const msg = await error.context?.json?.().then((j) => j.error).catch(() => null);
       throw new Error(msg || error.message);

@@ -16,7 +16,8 @@ const json = (body: unknown, status = 200) => Response.json(body, { status, head
 // Liste des modèles gratuits, rafraîchie toutes les 6 h (ils changent souvent).
 let freeModels: string[] = [];
 let freeModelsAt = 0;
-const PREFERRED = /llama-3\.3-70b|gemini|deepseek|qwen.*(72|235)|mistral-small|gpt-oss/i;
+// Modèles testés comme fiables pour ce format (rapides, JSON correct), essayés en premier.
+const PREFERRED = /minimax|lfm|llama-3\.3-70b|gemini|deepseek|qwen.*(72|235)|mistral-small|gpt-oss/i;
 async function getFreeModels(): Promise<string[]> {
   if (freeModels.length && Date.now() - freeModelsAt < 6 * 3600e3) return freeModels;
   const r = await fetch('https://openrouter.ai/api/v1/models');
@@ -42,8 +43,8 @@ Réponds UNIQUEMENT avec un objet JSON valide, sans texte autour :
 {"recipes":[{"title":"","emoji":"","minutes":0,"servings":0,"why":"une phrase",
 "ingredients":[{"name":"","qty":"","have":true}],"steps":["étape courte"]}]}`;
 
-// Rejette les réponses contenant d'autres alphabets (certains modèles gratuits mélangent les langues).
-const FOREIGN = /[\u0400-\u04ff\u0590-\u06ff\u0e00-\u0e7f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]/;
+// Certains modèles gratuits glissent des mots d'autres alphabets : on les retire.
+const FOREIGN = /[\u0400-\u04ff\u0590-\u06ff\u0e00-\u0e7f\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]+/g;
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
     if (!models.length) break;
     const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
+      signal: AbortSignal.timeout(30_000), // un modèle bloqué ne doit pas faire attendre l'utilisateur
       headers: {
         Authorization: `Bearer ${Deno.env.get('OPENROUTER_API_KEY')}`,
         'Content-Type': 'application/json',
@@ -104,12 +106,12 @@ Deno.serve(async (req) => {
         max_tokens: 4000,
         reasoning: { effort: 'low', exclude: true }, // modèles « qui réfléchissent » : réponse directe
       }),
-    });
+    }).catch(() => null);
+    if (!r) continue; // délai dépassé : groupe de modèles suivant
     const out = await r.json().catch(() => ({}));
-    const text: string = out?.choices?.[0]?.message?.content ?? '';
+    const text: string = (out?.choices?.[0]?.message?.content ?? '').replace(FOREIGN, '').replace(/ {2,}/g, ' ');
     try {
       const parsed = JSON.parse(text.match(/\{[\s\S]*\}/)?.[0] ?? '{}').recipes ?? [];
-      if (FOREIGN.test(JSON.stringify(parsed))) { console.warn('langue mélangée', out.model); continue; }
       recipes = parsed.filter((x: Recipe) => x?.title && Array.isArray(x.ingredients));
       model = out.model;
     } catch { console.error('openrouter', r.status, JSON.stringify(out).slice(0, 300)); }
