@@ -90,6 +90,7 @@ async function boot() {
     showApp();
     await handleInvite();
     offerLegacyImport();
+    askNotif();
     if (params.has('add')) { history.replaceState(null, '', BASE_URL); openItem(); }
     if (window.Notification?.permission === 'granted' && store.get('fz-push')) ensurePush().catch(() => {});
   } catch (e) { showApp(); fail(e); }
@@ -755,6 +756,21 @@ $('#push-toggle').onchange = async (e) => {
       store.set('fz-push', false);
     }
   } catch (err) { if (err.message !== 'denied') fail(err); }
+  pushUI();
+};
+// Demande d'activation (comme Instagram) : au démarrage si pas encore décidé, puis de nouveau tous les 3 jours après « Plus tard »
+function askNotif() {
+  if (!pushSupported || (isIOS && !standalone) || Notification.permission !== 'default') return;
+  if (Date.now() - (store.get('fz-notif-asked') || 0) < 3 * 864e5) return;
+  setTimeout(() => { if (!document.querySelector('dialog[open]')) openSheet('#sheet-notif'); }, 1500);
+}
+$('#sheet-notif').addEventListener('close', () => store.set('fz-notif-asked', Date.now()));
+$('#notif-yes').onclick = async () => {
+  $('#sheet-notif').close();
+  try {
+    if ((await Notification.requestPermission()) !== 'granted') return pushUI();
+    await ensurePush(); store.set('fz-push', true); toast('Rappels activés 🔔');
+  } catch (e) { fail(e); }
   pushUI();
 };
 async function ensurePush() {

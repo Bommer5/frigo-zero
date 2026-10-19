@@ -251,3 +251,8 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .dup-lot { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: .9rem; }
 .dup-lot .main { flex: 1; min-width: 0; }
 .dup-lot .btn { height: 34px; min-width: 52px; padding: 0 12px; }
+.notif-ask { text-align: center; padding-bottom: 8px; }
+.notif-ask .big { font-size: 3.2rem; margin: 8px 0 4px; }
+.notif-ask h2 { margin: 0 0 8px; }
+.notif-ask p { color: var(--text-2); margin: 0 auto 18px; max-width: 34ch; line-height: 1.45; }
+.notif-ask .btn + .btn { margin-top: 8px; }
