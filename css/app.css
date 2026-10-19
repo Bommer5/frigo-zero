@@ -258,3 +258,21 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .notif-ask .btn + .btn { margin-top: 8px; }
 .dup-lot .who { display: block; font-size: .78rem; color: var(--text-2); }
 .dup-box .btn.block { margin-top: 8px; }
+
+/* ---------- Recettes IA ---------- */
+.recipe-ask { display: grid; gap: 10px; margin-bottom: 16px; }
+.recipe-ask textarea { resize: none; min-height: 64px; font: inherit; }
+.recipe-opts { display: flex; justify-content: flex-end; color: var(--text-2); font-size: .9rem; }
+.recipe-opts select { font: inherit; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px; margin: 0 4px; }
+.recipe { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+.recipe h3 { margin: 0; font-size: 1.05rem; display: flex; gap: 8px; align-items: baseline; }
+.recipe .meta { color: var(--text-2); font-size: .82rem; margin: 4px 0 8px; }
+.recipe .why { margin: 0 0 10px; font-size: .92rem; }
+.recipe .ing { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.recipe .ing span { font-size: .8rem; padding: 4px 10px; border-radius: 99px; background: var(--surface-2); }
+.recipe .ing .have { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); font-weight: 600; }
+.recipe details summary { cursor: pointer; font-weight: 600; font-size: .9rem; color: var(--accent); padding: 6px 0; }
+.recipe ol { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 6px; font-size: .92rem; }
+.recipe .btn { width: 100%; }
+.r-loading { text-align: center; padding: 32px 12px; color: var(--text-2); }
+.r-loading .spinner { margin: 0 auto 12px; }

@@ -40,6 +40,8 @@
   <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
   <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.6v16.8a1 1 0 0 1-1.2 1L5 21V5.6a2 2 0 0 1 1.5-2l5-1.3a1 1 0 0 1 1.5 1Z"/></symbol>
+  <symbol id="i-chef" viewBox="0 0 24 24"><path d="M6 13.9A4 4 0 0 1 7.5 6a5 5 0 0 1 9 0A4 4 0 0 1 18 13.9V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1Z"/><path d="M6 17h12"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
 </svg>
 
@@ -100,6 +102,21 @@
     <div id="stats"></div>
   </main>
 
+  <!-- Recettes IA -->
+  <main id="v-recipes" class="view" hidden>
+    <h2 class="view-title">Recettes</h2>
+    <p class="note" style="margin-top:0">Des idées de recettes avec ce que tu as, en priorité les produits qui périment bientôt.</p>
+    <div class="recipe-ask">
+      <textarea id="r-wish" class="field" rows="2" maxlength="300" placeholder="Une envie ? (facultatif) ex. un plat rapide et épicé, un dessert, végétarien…"></textarea>
+      <div class="recipe-opts">
+        <label>Pour <select id="r-servings"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option></select> pers.</label>
+      </div>
+      <button id="r-go" class="btn block"><svg class="i"><use href="#i-chef"/></svg>Trouver des recettes</button>
+      <button id="r-inspire" class="btn secondary block"><svg class="i"><use href="#i-sparkle"/></svg>Inspire-moi</button>
+    </div>
+    <div id="r-results"></div>
+  </main>
+
   <!-- Foyer -->
   <main id="v-home" class="view" hidden>
     <h2 class="view-title">Foyer</h2>
@@ -123,6 +140,19 @@
       <button id="btn-leave" class="setting danger"><svg class="i"><use href="#i-door"/></svg><span class="main">Quitter ce foyer</span></button>
     </div>
 
+    <div id="ai-settings" hidden>
+      <div class="section-h">Recettes IA</div>
+      <div class="group">
+        <label class="setting"><svg class="i"><use href="#i-chef"/></svg><span class="main">Onglet Recettes<div class="sub">Idées de recettes avec ton stock</div></span><input id="ai-tab-toggle" type="checkbox" class="switch"></label>
+      </div>
+    </div>
+
+    <div id="admin-settings" hidden>
+      <div class="section-h">Administration · accès aux recettes IA</div>
+      <div id="admin-users" class="group"></div>
+      <p class="note">Toi seul vois cette section. Active l'interrupteur pour donner accès aux recettes IA.</p>
+    </div>
+
     <div class="section-h">Compte</div>
     <div class="group">
       <div class="setting"><span id="me-avatar2" class="avatar"></span><span class="main"><b id="me-name"></b><div class="sub" id="me-email"></div></span></div>
@@ -140,6 +170,7 @@
     <button role="tab" data-view="stock" aria-selected="true"><svg class="i"><use href="#i-box"/></svg>Stock<span id="badge-stock" class="count" hidden></span></button>
     <button role="tab" data-view="shop" aria-selected="false"><svg class="i"><use href="#i-cart"/></svg>Courses<span id="badge-shop" class="count" hidden></span></button>
     <button role="tab" data-view="stats" aria-selected="false"><svg class="i"><use href="#i-chart"/></svg>Bilan</button>
+    <button role="tab" data-view="recipes" aria-selected="false" hidden><svg class="i"><use href="#i-chef"/></svg>Recettes</button>
     <button role="tab" data-view="home" aria-selected="false"><svg class="i"><use href="#i-users"/></svg>Foyer</button>
   </nav>
 </div>

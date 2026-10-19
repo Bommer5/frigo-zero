@@ -14,7 +14,7 @@ const DAY = 864e5;
 const BASE_URL = location.origin + location.pathname.replace(/index\.html$/, '');
 
 // ---------- État ----------
-const S = { user: null, profile: null, households: [], hid: null, items: [], shop: [], members: [], log: [], cats: [], loc: '', cat: '', q: '', view: 'stock', channel: null };
+const S = { ai: { allowed: false, admin: false }, user: null, profile: null, households: [], hid: null, items: [], shop: [], members: [], log: [], cats: [], loc: '', cat: '', q: '', view: 'stock', channel: null };
 
 // ---------- Utilitaires ----------
 const $ = (s) => document.querySelector(s);
@@ -96,12 +96,16 @@ async function boot() {
   } catch (e) { showApp(); fail(e); }
 }
 function showApp() { $('#splash').hidden = true; $('#app').hidden = false; render(); }
-function cache() { store.set('fz-cache', { uid: S.user.id, s: { profile: S.profile, households: S.households, hid: S.hid, items: S.items, shop: S.shop, members: S.members, log: S.log, cats: S.cats } }); }
+function cache() { store.set('fz-cache', { uid: S.user.id, s: { ai: S.ai, profile: S.profile, households: S.households, hid: S.hid, items: S.items, shop: S.shop, members: S.members, log: S.log, cats: S.cats } }); }
 
 async function loadProfile() {
   const { data, error } = await sb.from('profiles').select('*').eq('id', S.user.id).single();
   if (error) throw error;
   S.profile = data;
+  const [acc, adm] = await Promise.all([
+    sb.from('ai_access').select('user_id').eq('user_id', S.user.id).maybeSingle(),
+    sb.rpc('is_app_admin')]);
+  S.ai = { allowed: !!acc.data, admin: adm.data === true };
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
   if (tz && data.timezone !== tz) { S.profile.timezone = tz; sb.from('profiles').update({ timezone: tz }).eq('id', S.user.id).then(); }
 }
@@ -154,12 +158,15 @@ function render() {
   const hh = S.households.find((h) => h.id === S.hid);
   $('#hh-name').textContent = hh?.name || 'Mon frigo';
   $('#me-avatar').outerHTML = avatar(S.profile, 'me-avatar');
-  for (const v of ['stock', 'shop', 'stats', 'home']) $('#v-' + v).hidden = S.view !== v;
+  const aiTab = S.ai.allowed && S.profile.ai_tab !== false;
+  $('.tabbar [data-view="recipes"]').hidden = !aiTab;
+  if (S.view === 'recipes' && !aiTab) S.view = 'stock';
+  for (const v of ['stock', 'shop', 'stats', 'recipes', 'home']) $('#v-' + v).hidden = S.view !== v;
   document.querySelectorAll('.tabbar button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === S.view));
   $('#fab').hidden = S.view !== 'stock';
   badge('#badge-stock', S.items.filter((i) => urgency(daysLeft(i.expires_on))).length);
   badge('#badge-shop', S.shop.filter((s) => !s.done).length);
-  ({ stock: renderStock, shop: renderShop, stats: renderStats, home: renderHome })[S.view]();
+  ({ stock: renderStock, shop: renderShop, stats: renderStats, recipes: renderRecipes, home: renderHome })[S.view]();
   warmImages();
 }
 function badge(sel, n) { const b = $(sel); b.hidden = !n; b.textContent = n > 99 ? '99+' : n; }
@@ -607,7 +614,64 @@ function renderHome() {
   $('#me-email').textContent = S.user.email || '';
   $('#me-avatar2').outerHTML = avatar(S.profile, 'me-avatar2');
   pushUI();
+  $('#ai-settings').hidden = !S.ai.allowed;
+  $('#ai-tab-toggle').checked = S.profile.ai_tab !== false;
+  $('#admin-settings').hidden = !S.ai.admin;
+  if (S.ai.admin) loadAdminUsers();
 }
+
+// ---------- Recettes IA ----------
+let recipes = null; // dernières recettes affichées
+function renderRecipes() {
+  if (!recipes) $('#r-results').innerHTML = `<div class="empty" style="padding:24px"><div class="big">👩‍🍳</div>
+    <p>Écris une envie ou appuie sur <b>Inspire-moi</b> pour des idées avec ton stock.</p></div>`;
+}
+async function askRecipes(wish) {
+  const out = $('#r-results');
+  out.innerHTML = '<div class="r-loading"><div class="spinner"></div>Le chef réfléchit… (10–30 s)</div>';
+  $('#r-go').disabled = $('#r-inspire').disabled = true;
+  try {
+    const { data, error } = await sb.functions.invoke('recipes', { body: { household_id: S.hid, wish, servings: +$('#r-servings').value, count: 3 } });
+    if (error) {
+      const msg = await error.context?.json?.().then((j) => j.error).catch(() => null);
+      throw new Error(msg || error.message);
+    }
+    recipes = data.recipes;
+    out.innerHTML = recipes.map((r, i) => `<article class="recipe">
+      <h3><span>${esc(r.emoji || '🍽️')}</span>${esc(r.title)}</h3>
+      <div class="meta">⏱ ${+r.minutes || '?'} min · 👥 ${+r.servings || $('#r-servings').value} pers.</div>
+      ${r.why ? `<p class="why">${esc(r.why)}</p>` : ''}
+      <div class="ing">${(r.used || []).map((x) => `<span class="have">✓ ${esc(x)}</span>`).join('')}${(r.missing || []).map((x) => `<span>+ ${esc(x)}</span>`).join('')}</div>
+      <details><summary>Voir les étapes</summary><ol>${(r.steps || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ol></details>
+      ${r.missing?.length ? `<button class="btn secondary" data-shop="${i}">${icon('cart')}Ajouter ${r.missing.length} ingrédient${r.missing.length > 1 ? 's' : ''} aux courses</button>` : ''}
+    </article>`).join('') + (data.remaining != null ? `<p class="note" style="text-align:center">Encore ${data.remaining} demande(s) aujourd'hui.</p>` : '');
+  } catch (e) {
+    recipes = null;
+    out.innerHTML = `<div class="empty" style="padding:24px"><div class="big">😕</div><p>${esc(e.message)}</p></div>`;
+  } finally { $('#r-go').disabled = $('#r-inspire').disabled = false; }
+}
+$('#r-go').onclick = () => askRecipes($('#r-wish').value.trim());
+$('#r-inspire').onclick = () => { $('#r-wish').value = ''; askRecipes(''); };
+$('#r-results').onclick = async (e) => {
+  const i = e.target.closest('[data-shop]')?.dataset.shop; if (i == null) return;
+  const b = e.target.closest('[data-shop]'); b.disabled = true;
+  for (const label of recipes[i].missing) await addShop(label);
+  b.innerHTML = `${icon('check')}Ajouté à la liste de courses`; vibrate();
+};
+$('#ai-tab-toggle').onchange = (e) => saveProfile({ ai_tab: e.target.checked });
+
+// Administration : seul un admin voit et modifie qui a accès aux recettes IA.
+async function loadAdminUsers() {
+  const { data, error } = await sb.rpc('admin_list_users');
+  if (error) return fail(error);
+  $('#admin-users').innerHTML = data.map((u) => `<label class="setting">${avatar(u)}<span class="main"><b>${esc(u.display_name || 'Sans nom')}</b>${u.is_admin ? ' <span class="role">Admin</span>' : ''}
+    <div class="sub">${esc(u.email)}</div></span><input type="checkbox" class="switch" data-ai-user="${u.id}" ${u.ai_allowed ? 'checked' : ''} ${u.is_admin ? 'disabled' : ''}></label>`).join('');
+}
+$('#admin-users').onchange = async (e) => {
+  const id = e.target.dataset.aiUser; if (!id) return;
+  try { await rpc('admin_set_ai', { p_user: id, p_allowed: e.target.checked }); toast(e.target.checked ? 'Accès aux recettes donné ✅' : 'Accès retiré'); }
+  catch (err) { e.target.checked = !e.target.checked; fail(err); }
+};
 $('#members').onclick = async (e) => {
   const id = e.target.closest('[data-kick]')?.dataset.kick; if (!id) return;
   const m = S.members.find((x) => x.user_id === id);

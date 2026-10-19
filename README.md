@@ -1,6 +1,6 @@
 # 🧊 Frigo Zéro
 
-Application web (PWA) gratuite et open source pour suivre les dates de péremption de ton frigo, sur **iPhone et Android**, connexion Google, frigo partagé, sans pub, sans IA.
+Application web (PWA) gratuite et open source pour suivre les dates de péremption de ton frigo, sur **iPhone et Android**, connexion Google, frigo partagé, sans pub.
 
 **👉 Utiliser l'app : https://bommer5.github.io/frigo-zero/**
 
@@ -14,6 +14,7 @@ Application web (PWA) gratuite et open source pour suivre les dates de pérempti
 - 🛒 **Liste de courses**
 - 📊 **Bilan anti-gaspi** : % de produits sauvés, ce que tu jettes le plus
 - 🔔 **Rappels quotidiens** de péremption (voir ci-dessous)
+- 👩‍🍳 **Recettes IA** (option sur invitation) : idées de recettes avec ton stock, avec ou sans envie précise
 - 👨‍👩‍👧 **Foyers partagés** avec invitations, synchro en temps réel
 - 💾 Export des données, affichage **hors ligne**, mode sombre
 - Les produits déjà scannés sont mémorisés (re-scan instantané, même hors ligne)
