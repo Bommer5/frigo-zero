@@ -1,7 +1,7 @@
 // Service worker : app utilisable hors ligne + réception des rappels push.
-const CACHE = 'fz-v2';
+const CACHE = 'fz-v3';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'privacy.html',
-  'icons/icon.svg', 'icons/icon-192.png', 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'];
+  'icons/icon.svg', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {

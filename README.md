@@ -41,7 +41,7 @@ Une fonction Edge (`supabase/functions/send-reminders`) est appelée toutes les 
 - RGPD : export des données et suppression du compte depuis l'app. [Politique de confidentialité](privacy.html)
 
 ## Technique
-HTML/CSS/JS vanilla (modules ES), sans étape de build. Scan : [html5-qrcode](https://github.com/mebjas/html5-qrcode) (ZXing).
+HTML/CSS/JS vanilla (modules ES), sans étape de build. Scan : `BarcodeDetector` natif, sinon polyfill [barcode-detector](https://github.com/Sec-ant/barcode-detector) (zxing-wasm, pour iOS).
 Données produits : [Open Food Facts](https://world.openfoodfacts.org). Inspiré de [Dispensa](https://f-droid.org/packages/eu.frigo.dispensa), Grocy, FridgeBuddy.
 
 ```

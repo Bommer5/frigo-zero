@@ -195,7 +195,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .35); animation: fade .2s; }
 .sheet-h h2 { margin: 0; font-size: 1.25rem; }
 .scan-box { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; margin-bottom: 10px; }
 .scan-box #reader { width: 100%; height: 100%; }
-.scan-box #reader video { width: 100% !important; height: 100% !important; object-fit: cover; }
+.scan-box #reader video { display: block; width: 100%; height: 100%; object-fit: cover; }
 .scan-box .frame { position: absolute; inset: 32% 10%; border: 3px solid rgba(255, 255, 255, .9); border-radius: 14px; box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); pointer-events: none; }
 .scan-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .status { font-size: .88rem; color: var(--text-2); min-height: 1.3em; margin: 8px 2px; }

@@ -282,30 +282,58 @@ $('#item-delete').onclick = async () => {
   } catch (e) { fail(e); }
 };
 
-// Scan : html5-qrcode (ZXing) — caméra arrière ou photo
-const FORMATS = () => ['EAN_13', 'EAN_8', 'UPC_A', 'UPC_E'].map((f) => window.Html5QrcodeSupportedFormats[f]);
-function newScanner() {
-  if (!window.Html5Qrcode) { status('Le scanner se charge… réessaie dans un instant.'); return null; }
-  return new window.Html5Qrcode('reader', { formatsToSupport: FORMATS(), useBarCodeDetectorIfSupported: true, verbose: false });
+// Scan : BarcodeDetector natif (Android) sinon polyfill zxing-wasm (iOS/Safari, bien plus fiable que ZXing-js sur les EAN)
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+let detectorP = null;
+function getDetector() {
+  return (detectorP ||= (async () => {
+    if ('BarcodeDetector' in window) {
+      try { if ((await BarcodeDetector.getSupportedFormats()).includes('ean_13')) return new BarcodeDetector({ formats: FORMATS }); } catch {}
+    }
+    const { BarcodeDetector: Poly } = await import('https://cdn.jsdelivr.net/npm/barcode-detector@3.0.8/ponyfill/+esm');
+    return new Poly({ formats: FORMATS });
+  })().catch((e) => { detectorP = null; throw e; }));
 }
+getDetector().catch(() => {});
 $('#btn-scan').onclick = async () => {
   if (scanner) return stopScan();
-  scanner = newScanner(); if (!scanner) return;
+  const s = (scanner = { stream: null, timer: 0 });
   $('#scan-box').hidden = false; $('#btn-scan span').textContent = 'Arrêter'; status('Vise le code-barres');
   try {
-    await scanner.start({ facingMode: 'environment' }, { fps: 12, aspectRatio: 4 / 3, qrbox: (w, h) => ({ width: Math.round(w * 0.8), height: Math.round(h * 0.36) }) },
-      (code) => { stopScan(); onCode(code); });
-  } catch { stopScan(); status("Impossible d'accéder à la caméra. Autorise-la dans les réglages, ou utilise « Photo »."); }
+    const [det, stream] = await Promise.all([getDetector(), navigator.mediaDevices.getUserMedia({
+      audio: false, video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } })]);
+    s.stream = stream; if (scanner !== s) return stopTracks(stream);
+    const track = stream.getVideoTracks()[0];
+    try { if (track.getCapabilities?.().focusMode?.includes('continuous')) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }); } catch {}
+    const video = Object.assign(document.createElement('video'), { muted: true, playsInline: true, srcObject: stream });
+    video.setAttribute('playsinline', ''); $('#reader').replaceChildren(video); await video.play();
+    const tick = async () => {
+      if (scanner !== s) return;
+      try {
+        const [hit] = await det.detect(video);
+        if (hit && scanner === s) { stopScan(); return onCode(hit.rawValue); }
+      } catch {}
+      s.timer = setTimeout(tick, 120);
+    };
+    tick();
+  } catch (e) {
+    stopScan();
+    status(e?.name === 'NotAllowedError' || e?.name === 'NotFoundError' ? "Impossible d'accéder à la caméra. Autorise-la dans les réglages, ou utilise « Photo »." : 'Le scanner ne se charge pas. Vérifie ta connexion, ou utilise « Photo ».');
+  }
 };
 $('#scan-file').onchange = async (e) => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
-  const s = newScanner(); if (!s) return;
   status('Analyse de la photo…');
-  try { onCode(await s.scanFile(f, false)); } catch { status('Aucun code-barres lisible sur cette photo.'); }
+  try {
+    const det = await getDetector(), [hit] = await det.detect(await createImageBitmap(f));
+    if (!hit) throw new Error('none'); onCode(hit.rawValue);
+  } catch { status('Aucun code-barres lisible sur cette photo.'); }
 };
+const stopTracks = (st) => st?.getTracks().forEach((t) => t.stop());
 function stopScan() {
   const s = scanner; scanner = null;
-  if (s) (s.isScanning ? s.stop() : Promise.resolve()).then(() => s.clear()).catch(() => {});
+  if (s) { clearTimeout(s.timer); stopTracks(s.stream); }
+  $('#reader').replaceChildren();
   $('#scan-box').hidden = true; $('#btn-scan span').textContent = 'Scanner';
 }
 async function onCode(code) {
