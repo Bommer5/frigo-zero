@@ -190,7 +190,7 @@ function renderStock() {
 function itemRow(i) {
   const [emo, loc] = LOCS[i.location] || LOCS.other;
   return `<div class="row" data-id="${i.id}">
-    <button class="thumb" data-act="edit" aria-label="Modifier">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" loading="lazy">` : emo}</button>
+    <button class="thumb" data-act="${i.image_url ? 'zoom' : 'edit'}" aria-label="${i.image_url ? 'Voir la photo' : 'Modifier'}">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" loading="lazy">` : emo}</button>
     <button class="main" data-act="edit"><div class="title">${esc(i.name)}</div>
       <div class="sub"><span class="badge ${urgency(i.n)}">${when(i.n, i.date_kind)}</span>${i.quantity > 1 ? `<span>×${i.quantity}</span>` : ''}<span>${loc}${i.note ? ' · ' + esc(i.note) : ''}</span></div></button>
     <div class="row-actions"><button class="eat" data-act="eaten" aria-label="Consommé">${icon('eat')}</button><button class="waste" data-act="wasted" aria-label="Jeté">${icon('trash')}</button></div></div>`;
@@ -199,8 +199,18 @@ $('#stock-list').onclick = (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act, row = e.target.closest('.row');
   if (!act || !row) return;
   const item = S.items.find((i) => i.id === row.dataset.id);
-  if (item) act === 'edit' ? openItem(item) : consume(item, act);
+  if (!item) return;
+  if (act === 'zoom') zoom(item.image_url, item.name); else if (act === 'edit') openItem(item); else consume(item, act);
 };
+// Photo en plein écran (version haute déf. Open Food Facts si dispo, sinon la miniature)
+function zoom(src, name = '') {
+  if (!src) return;
+  const im = $('#zoom-img'), full = src.replace(/\.(100|200|400)\.jpg$/, '.full.jpg');
+  im.onerror = () => { im.onerror = null; im.src = src; };
+  im.src = full; im.alt = name; $('#zoom').showModal();
+}
+$('#zoom').onclick = () => $('#zoom').close();
+$('#pp-img').onclick = () => zoom(img, $('#pp-name').textContent);
 async function consume(item, outcome) {
   vibrate(15);
   const snapshot = { ...item }, gone = item.quantity <= 1;

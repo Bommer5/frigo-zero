@@ -1,5 +1,5 @@
 // Service worker : app utilisable hors ligne + réception des rappels push.
-const CACHE = 'fz-v3';
+const CACHE = 'fz-v4';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'privacy.html',
   'icons/icon.svg', 'icons/icon-192.png'];
 
