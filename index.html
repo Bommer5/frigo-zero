@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Frigo Zéro</title>
+<meta name="description" content="Suis les dates de péremption de ton frigo, scanne tes courses, gaspille zéro.">
+<meta name="theme-color" content="#16a34a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Frigo Zéro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>🧊 Frigo Zéro</h1>
+  <button id="btn-settings" class="icon" aria-label="Réglages">⚙️</button>
+</header>
+
+<nav class="tabs">
+  <button data-tab="stock" class="active">Stock</button>
+  <button data-tab="courses">Courses</button>
+  <button data-tab="stats">Bilan</button>
+</nav>
+
+<main>
+  <section id="tab-stock">
+    <div id="install-hint" class="banner" hidden></div>
+    <div class="filters">
+      <input id="search" type="search" placeholder="Rechercher…">
+      <select id="filter-loc"></select>
+    </div>
+    <div id="summary" class="summary"></div>
+    <ul id="list" class="list"></ul>
+    <p id="empty" class="empty" hidden>Ton frigo est vide. Appuie sur <b>+</b> pour scanner un produit.</p>
+  </section>
+
+  <section id="tab-courses" hidden>
+    <form id="shop-form" class="row">
+      <input id="shop-input" class="grow" placeholder="Ajouter à la liste…" autocomplete="off">
+      <button>Ajouter</button>
+    </form>
+    <ul id="shop-list" class="list"></ul>
+    <button id="shop-clear" class="ghost">Supprimer les éléments cochés</button>
+  </section>
+
+  <section id="tab-stats" hidden>
+    <div id="stats"></div>
+  </section>
+</main>
+
+<button id="fab" class="fab" aria-label="Ajouter un produit">+</button>
+
+<dialog id="dlg-item">
+  <form id="item-form" method="dialog">
+    <h2 id="item-title">Ajouter un produit</h2>
+    <div id="scanner-wrap">
+      <div id="reader"></div>
+      <div class="row">
+        <button type="button" id="btn-scan" class="grow">📷 Scanner le code-barres</button>
+        <label class="btn ghost">🖼️ Photo<input type="file" id="scan-file" accept="image/*" hidden></label>
+      </div>
+      <p id="scan-status" class="muted"></p>
+    </div>
+    <div class="product">
+      <img id="item-img" alt="" hidden>
+      <div class="grow">
+        <label>Nom<input id="f-name" required placeholder="ex. Yaourt nature"></label>
+        <label>Code-barres<input id="f-code" inputmode="numeric" placeholder="facultatif"></label>
+      </div>
+    </div>
+    <div class="quick" id="quick-items"></div>
+    <label>Date de péremption<input id="f-date" type="date" required></label>
+    <div class="quick" id="quick-dates"></div>
+    <div class="row">
+      <label class="grow">Emplacement<select id="f-loc"></select></label>
+      <label class="grow">Quantité<input id="f-qty" type="number" min="1" value="1"></label>
+    </div>
+    <label>Type de date
+      <select id="f-kind"><option value="dlc">À consommer jusqu'au (DLC)</option><option value="ddm">De préférence avant (DDM)</option></select>
+    </label>
+    <label>Note<input id="f-note" placeholder="ex. entamé"></label>
+    <div class="row end">
+      <button type="button" class="ghost" id="item-cancel">Annuler</button>
+      <button id="item-save">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-settings">
+  <form method="dialog">
+    <h2>Réglages</h2>
+    <label>Me prévenir
+      <select id="s-days"><option value="1">1 jour avant</option><option value="2">2 jours avant</option><option value="3">3 jours avant</option><option value="5">5 jours avant</option></select>
+    </label>
+    <label>Heure du rappel quotidien<input id="s-hour" type="time" value="18:00"></label>
+    <button type="button" id="btn-notif">🔔 Activer les notifications</button>
+    <p id="notif-status" class="muted"></p>
+    <hr>
+    <h3>Partager le frigo</h3>
+    <p class="muted">Envoie ce lien à ta coloc ou ta famille : il contient ton stock actuel.</p>
+    <button type="button" id="btn-share">🔗 Partager le stock</button>
+    <hr>
+    <h3>Sauvegarde</h3>
+    <div class="row">
+      <button type="button" id="btn-export" class="ghost grow">⬇️ Exporter</button>
+      <label class="btn ghost grow">⬆️ Importer<input type="file" id="import-file" accept="application/json" hidden></label>
+    </div>
+    <p class="muted">Données stockées uniquement sur ton téléphone. Infos produits : <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL).</p>
+    <div class="row end"><button>Fermer</button></div>
+  </form>
+</dialog>
+
+<div id="toast" role="status"></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
