@@ -256,3 +256,5 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .notif-ask h2 { margin: 0 0 8px; }
 .notif-ask p { color: var(--text-2); margin: 0 auto 18px; max-width: 34ch; line-height: 1.45; }
 .notif-ask .btn + .btn { margin-top: 8px; }
+.dup-lot .who { display: block; font-size: .78rem; color: var(--text-2); }
+.dup-box .btn.block { margin-top: 8px; }

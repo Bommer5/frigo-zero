@@ -501,13 +501,25 @@ $('#f-photo').onchange = async (e) => {
   updPhoto();
 };
 const shortDate = (d) => new Date(d + 'T12:00').toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+// Qui a ajouté le lot, et quand : évite qu'un 2e membre du foyer rescanne un produit qui vient d'être rangé
+const who = (uid) => uid === S.user.id ? 'toi' : S.members.find((m) => m.user_id === uid)?.profiles?.display_name?.split(' ')[0] || 'un membre';
+function ago(ts) {
+  const m = Math.round((Date.now() - new Date(ts)) / 6e4);
+  return m < 1 ? "à l'instant" : m < 60 ? `il y a ${m} min` : m < 1440 ? `il y a ${Math.round(m / 60)} h` : `il y a ${Math.round(m / 1440)} j`;
+}
 function showLots(lots) {
+  const fresh = lots.find((l) => Date.now() - new Date(l.created_at) < 864e5);
   $('#dup-box').innerHTML = `<div class="sub">Déjà dans le frigo</div>` + lots.map((l) => `<div class="dup-lot" data-id="${l.id}">
-    <span class="main">×${l.quantity} · ${l.date_kind === 'ddm' ? 'avant le' : "jusqu'au"} ${shortDate(l.expires_on)} · ${LOCS[l.location]?.[1] || ''}</span>
-    <button type="button" class="btn secondary" data-bump>+1</button></div>`).join('');
+    <span class="main">×${l.quantity} · ${l.date_kind === 'ddm' ? 'avant le' : "jusqu'au"} ${shortDate(l.expires_on)} · ${LOCS[l.location]?.[1] || ''}
+      <span class="who">Ajouté par ${esc(who(l.added_by))} ${ago(l.created_at)}</span></span>
+    <button type="button" class="btn secondary" data-bump>+1</button></div>`).join('')
+    + (fresh ? `<button type="button" class="btn block" data-same>C'est le même, je ne l'ajoute pas</button>
+      <button type="button" class="btn secondary block" data-new>J'en ai racheté un autre</button>` : '');
   $('#dup-box').hidden = false;
 }
 $('#dup-box').onclick = (e) => {
+  if (e.target.closest('[data-same]')) { $('#sheet-item').close(); return toast('OK, rien ajouté 👍'); }
+  if (e.target.closest('[data-new]')) { $('#dup-box').hidden = true; status('Choisis la date du nouveau produit (même date = regroupé).', true); $('#f-date').focus(); try { $('#f-date').showPicker(); } catch {} return; }
   if (!e.target.closest('[data-bump]')) return;
   const item = S.items.find((i) => i.id === e.target.closest('[data-id]').dataset.id); if (item) bumpQty(item);
 };
@@ -557,6 +569,18 @@ $('#shop-clear').onclick = async () => {
 };
 
 // ---------- Bilan ----------
+// Compte rendu de ce qui a été mangé (30 derniers jours) : le plus consommé, puis l'historique récent
+function eatenReport() {
+  const eaten = S.log.filter((l) => l.outcome === 'eaten');
+  if (!eaten.length) return '';
+  const top = Object.entries(eaten.reduce((m, l) => ((m[l.name] = (m[l.name] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const byDay = eaten.reduce((m, l) => { const k = l.happened_on + '|' + l.name; (m[k] ||= { ...l, n: 0 }).n++; return m; }, {});
+  const recent = Object.values(byDay).sort((a, b) => b.happened_on.localeCompare(a.happened_on)).slice(0, 15);
+  return `<div class="section-h">Ce que le foyer a mangé</div><div class="card-list">${top.map(([n, c]) =>
+      `<div class="row"><span class="main"><span class="title">${esc(n)}</span></span><span class="badge">${c}×</span></div>`).join('')}</div>
+    <div class="section-h">Mangé récemment</div><div class="card-list">${recent.map((l) =>
+      `<div class="row"><span class="main"><span class="title">😋 ${esc(l.name)}${l.n > 1 ? ` ×${l.n}` : ''}</span></span><span class="sub">${shortDate(l.happened_on)}</span></div>`).join('')}</div>`;
+}
 function renderStats() {
   const eaten = S.log.filter((l) => l.outcome === 'eaten').length, wasted = S.log.length - eaten;
   const pct = S.log.length ? Math.round((eaten / S.log.length) * 100) : 100;
@@ -567,7 +591,8 @@ function renderStats() {
     <div class="stat-split"><div><b>${eaten}</b><span>consommés</span></div><div><b style="color:var(--red)">${wasted}</b><span>jetés</span></div></div>
     ${top.length ? `<div class="section-h">Ce que le foyer jette le plus</div><div class="card-list">${top.map(([n, c]) =>
       `<div class="row"><span class="main"><span class="title">${esc(n)}</span></span><span class="badge r">${c}×</span></div>`).join('')}</div>
-      <p class="note">Astuce : achète ces produits en plus petite quantité, ou congèle-les dès l'achat.</p>` : ''}`;
+      <p class="note">Astuce : achète ces produits en plus petite quantité, ou congèle-les dès l'achat.</p>` : ''}
+    ${eatenReport()}`;
 }
 
 // ---------- Foyer ----------
