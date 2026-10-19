@@ -245,3 +245,9 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .cat-pick { flex-wrap: wrap; overflow: visible; padding: 4px 0; }
 .cat-pick .chip { height: 32px; padding: 0 12px; }
 .chip.add { border-style: dashed; }
+.dup-box { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+.dup-box[hidden] { display: none; }
+.dup-box > .sub { font-size: .8rem; color: var(--text-2); margin-bottom: 4px; }
+.dup-lot { display: flex; align-items: center; gap: 10px; padding: 4px 0; font-size: .9rem; }
+.dup-lot .main { flex: 1; min-width: 0; }
+.dup-lot .btn { height: 34px; min-width: 52px; padding: 0 12px; }

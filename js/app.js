@@ -341,6 +341,7 @@ function openItem(item = null) {
   openSheet('#sheet-item');
 }
 function setProduct(p) {
+  $('#dup-box').hidden = true;
   img = p?.image_url || null; $('#item-form').dataset.code = p?.barcode || '';
   $('#product-preview').hidden = !p?.barcode || !!editing;
   if (p?.barcode) { $('#pp-img').src = img || 'icons/icon-192.png'; $('#pp-name').textContent = p.name || 'Produit inconnu'; $('#pp-code').textContent = p.barcode; }
@@ -360,6 +361,10 @@ $('#item-form').onsubmit = async (e) => {
   const row = { name, expires_on: date, date_kind: kind, location: loc, quantity: qty, note: $('#f-note').value.trim() || null, barcode: code, image_url: img, category_id: cat };
   $('#item-save').disabled = true;
   try {
+    // Même produit, même date, même endroit : on regroupe dans le lot existant au lieu de créer un doublon
+    const same = !editing && S.items.find((i) => i.expires_on === date && i.location === loc
+      && (code ? i.barcode === code : !i.barcode && i.name.toLowerCase() === name.toLowerCase()));
+    if (same) { $('#item-save').disabled = false; return bumpQty(same, qty); }
     if (editing) await sb.from('items').update(row).eq('id', editing.id).throwOnError();
     else await sb.from('items').insert({ ...row, household_id: S.hid }).throwOnError();
     if (code) {
@@ -450,9 +455,14 @@ async function onCode(code) {
   }
   // Même code scanné deux fois dans le formulaire : +1 à la quantité
   if (!editing && $('#item-form').dataset.code === code) { $('#f-qty').value = qty = Math.min(999, qty + 1); return status(`Quantité : ${qty}`, true); }
-  // Déjà dans le frigo : +1 directement sur ce produit (celui qui périme en premier)
-  const dup = !editing && S.items.filter((i) => i.barcode === code).sort((a, b) => a.expires_on.localeCompare(b.expires_on))[0];
-  if (dup && dup.quantity < 999) return bumpQty(dup);
+  // Déjà dans le frigo : on montre les lots (une ligne par date) ; +1 sur un lot, ou nouvelle date = nouveau lot
+  const lots = editing ? [] : S.items.filter((i) => i.barcode === code).sort((a, b) => a.expires_on.localeCompare(b.expires_on));
+  if (lots.length) {
+    const l = lots[0];
+    fillFrom({ barcode: code, name: l.name, image_url: l.image_url, location: l.location, date_kind: l.date_kind, category_id: l.category_id },
+      'Déjà dans le frigo : même date → +1, sinon choisis la nouvelle date.', false);
+    return showLots(lots);
+  }
   const known = (store.get('fz-products') || {})[code] || S.items.find((i) => i.barcode === code);
   if (known) return fillFrom({ barcode: code, name: known.name, image_url: known.image_url, location: known.location, date_kind: known.date_kind, category_id: known.category_id }, 'Produit reconnu ✓');
   status('Recherche du produit…');
@@ -489,9 +499,20 @@ $('#f-photo').onchange = async (e) => {
   catch (err) { fail(err); }
   updPhoto();
 };
-async function bumpQty(item) {
+const shortDate = (d) => new Date(d + 'T12:00').toLocaleDateString('fr-BE', { day: 'numeric', month: 'short' });
+function showLots(lots) {
+  $('#dup-box').innerHTML = `<div class="sub">Déjà dans le frigo</div>` + lots.map((l) => `<div class="dup-lot" data-id="${l.id}">
+    <span class="main">×${l.quantity} · ${l.date_kind === 'ddm' ? 'avant le' : "jusqu'au"} ${shortDate(l.expires_on)} · ${LOCS[l.location]?.[1] || ''}</span>
+    <button type="button" class="btn secondary" data-bump>+1</button></div>`).join('');
+  $('#dup-box').hidden = false;
+}
+$('#dup-box').onclick = (e) => {
+  if (!e.target.closest('[data-bump]')) return;
+  const item = S.items.find((i) => i.id === e.target.closest('[data-id]').dataset.id); if (item) bumpQty(item);
+};
+async function bumpQty(item, n = 1) {
   const before = item.quantity;
-  item.quantity++; $('#sheet-item').close(); render(); vibrate(20);
+  item.quantity = Math.min(999, before + n); $('#sheet-item').close(); render(); vibrate(20);
   try {
     await sb.from('items').update({ quantity: item.quantity }).eq('id', item.id).throwOnError();
     toast(`${item.name} ×${item.quantity} ✓`, 'Annuler', async () => {
@@ -499,13 +520,13 @@ async function bumpQty(item) {
     });
   } catch (e) { item.quantity = before; render(); fail(e); }
 }
-function fillFrom(p, msg) {
+function fillFrom(p, msg, ok = true) {
   setProduct(p); $('#f-name').value = p.name || '';
   if (p.location) setSeg('#f-loc', (loc = p.location));
   if (p.date_kind) setSeg('#f-kind', (kind = p.date_kind));
   if (p.category_id && S.cats.some((c) => c.id === p.category_id)) setCat(p.category_id);
-  status(msg, true);
-  $('#f-date').focus(); try { $('#f-date').showPicker(); } catch {}
+  status(msg, ok);
+  if (ok) { $('#f-date').focus(); try { $('#f-date').showPicker(); } catch {} }
 }
 
 // ---------- Courses ----------
