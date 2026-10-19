@@ -205,26 +205,41 @@ $('#stock-list').onclick = (e) => {
 };
 // Photo en plein écran : miniature tout de suite (déjà en cache), puis version 400 px dès qu'elle arrive
 const bigUrl = (src) => src.replace(/\.(100|200)\.jpg$/, '.400.jpg');
+// Version zoom : HD (1200 px) dans le bucket, sinon 400 px chez Open Food Facts
+const hdUrl = (src) => /\/product-images\//.test(src) ? src.replace(/(-hd)?\.jpg$/, '-hd.jpg') : bigUrl(src);
+async function toJpeg(blob, max, q) {
+  const bmp = await createImageBitmap(blob), k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise((ok) => c.toBlob(ok, 'image/jpeg', q));
+}
+async function putImage(path, blob) {
+  const { error } = await sb.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+  if (error && !/exists|duplicate/i.test(error.message)) throw error;
+  return sb.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+}
 function zoom(src, name = '') {
   if (!src) return;
-  const im = $('#zoom-img'), big = bigUrl(src);
+  const im = $('#zoom-img'), big = hdUrl(src);
   // Dans un <dialog> modal ouvert (top layer), sinon l'overlay resterait caché derrière
   (document.querySelector('dialog[open]') || document.body).append($('#zoom'));
   im.src = src; im.alt = name; $('#zoom').hidden = false;
   if (big !== src) { const pre = new Image(); pre.onload = () => { if (im.src === src || im.src.endsWith(src)) im.src = big; }; pre.src = big; }
 }
 $('#zoom').onclick = () => { $('#zoom').hidden = true; $('#zoom-img').removeAttribute('src'); };
-// Open Food Facts met 5-10 s à servir une image : on la copie une fois (400 px) dans le bucket Supabase (CDN rapide)
+// Open Food Facts met 5-10 s à servir une image : on la copie une fois dans le bucket Supabase (CDN rapide),
+// en miniature 400 px pour la liste et en HD 1200 px (depuis l'original) pour le zoom
 const OFF_IMG = /^https:\/\/images\.open(food|products|beauty)facts\.org\//, mirrors = new Map();
 function mirror(code, src) {
   if (!code || !src || !OFF_IMG.test(src) || !/^\d{6,14}$/.test(code)) return Promise.resolve(src);
   if (!mirrors.has(code)) mirrors.set(code, (async () => {
-    const path = `${code}.jpg`, pub = sb.storage.from('product-images').getPublicUrl(path).data.publicUrl;
-    if ((await fetch(pub, { method: 'HEAD' })).ok) return pub;
-    const blob = await (await fetch(bigUrl(src))).blob();
-    const { error } = await sb.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
-    if (error && !/exists|duplicate/i.test(error.message)) throw error;
-    return pub;
+    const pub = sb.storage.from('product-images').getPublicUrl(`${code}.jpg`).data.publicUrl;
+    const head = (u) => fetch(u, { method: 'HEAD' }).then((r) => r.ok, () => false);
+    if (!(await head(hdUrl(pub)))) // en arrière-plan : l'original OFF peut peser plusieurs Mo
+      fetch(src.replace(/\.(100|200|400)\.jpg$/, '.full.jpg')).then((r) => r.blob()).then((b) => toJpeg(b, 1200, 0.85))
+        .then((b) => putImage(`${code}-hd.jpg`, b)).catch(() => {});
+    if (await head(pub)) return pub;
+    return putImage(`${code}.jpg`, await (await fetch(bigUrl(src))).blob());
   })().catch(() => { mirrors.delete(code); return src; }));
   return mirrors.get(code);
 }
@@ -420,16 +435,11 @@ async function onCode(code) {
   const location = i > 0 ? 'other' : /frozen|surgel/.test(cats) ? 'freezer' : /dair|meat|fish|fresh|yogurt|chees|dessert|ham|charcut/.test(cats) ? 'fridge' : 'pantry';
   fillFrom({ barcode: code, name, image_url: p.image_front_small_url?.startsWith('https://') ? p.image_front_small_url : null, location }, 'Trouvé ✓ Indique la date');
 }
-// Photo prise dans l'app (produit inconnu ou sans photo) : réduite à 600 px puis envoyée dans le bucket
+// Photo prise dans l'app (produit inconnu ou sans photo) : miniature + HD dans le bucket
 async function uploadPhoto(file) {
-  const bmp = await createImageBitmap(file), k = Math.min(1, 600 / Math.max(bmp.width, bmp.height));
-  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.8));
-  const path = `u/${crypto.randomUUID()}.jpg`;
-  const { error } = await sb.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
-  if (error) throw error;
-  return sb.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+  const id = crypto.randomUUID();
+  const [url] = await Promise.all([putImage(`u/${id}.jpg`, await toJpeg(file, 400, 0.85)), putImage(`u/${id}-hd.jpg`, await toJpeg(file, 1200, 0.85))]);
+  return url;
 }
 function updPhoto() {
   const preview = !$('#product-preview').hidden;
