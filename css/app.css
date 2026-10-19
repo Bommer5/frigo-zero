@@ -240,3 +240,8 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .photo-add { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 12px; color: var(--text-2); font-size: .9rem; cursor: pointer; }
 .photo-add[hidden] { display: none; }
 .photo-add img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: #fff; }
+.chips[hidden] { display: none; }
+#cat-chips { padding-top: 4px; }
+.cat-pick { flex-wrap: wrap; overflow: visible; padding: 4px 0; }
+.cat-pick .chip { height: 32px; padding: 0 12px; }
+.chip.add { border-style: dashed; }

@@ -78,6 +78,7 @@
     <div id="import-banner" class="banner" hidden></div>
     <label class="search"><svg class="i"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Rechercher un produit" aria-label="Rechercher"></label>
     <div class="chips" id="loc-chips" role="group" aria-label="Emplacement"></div>
+    <div class="chips" id="cat-chips" role="group" aria-label="Catégorie" hidden></div>
     <div id="overview" class="overview"></div>
     <div id="stock-list"></div>
   </main>
@@ -117,6 +118,7 @@
 
     <div class="section-h">Ce foyer</div>
     <div class="group">
+      <button id="btn-cats" class="setting"><span class="i" aria-hidden="true">🏷️</span><span class="main">Catégories<div class="sub" id="cats-sub">Viande, alcool…</div></span></button>
       <button id="btn-rename" class="setting"><svg class="i"><use href="#i-edit"/></svg><span class="main">Renommer</span></button>
       <button id="btn-leave" class="setting danger"><svg class="i"><use href="#i-door"/></svg><span class="main">Quitter ce foyer</span></button>
     </div>
@@ -177,6 +179,9 @@
     <label class="lbl">Emplacement</label>
     <div class="seg" id="f-loc" role="group"></div>
 
+    <label class="lbl">Catégorie</label>
+    <div class="chips cat-pick" id="f-cat" role="group"></div>
+
     <div class="two">
       <div><label class="lbl" for="f-note">Note</label><input id="f-note" class="field" maxlength="200" placeholder="facultatif — ex. entamé"></div>
       <div><label class="lbl">Quantité</label><div class="stepper"><button type="button" data-step="-1" aria-label="Moins">−</button><output id="f-qty">1</output><button type="button" data-step="1" aria-label="Plus">+</button></div></div>
@@ -199,6 +204,22 @@
       <input id="hh-new" class="field" placeholder="Nouveau foyer (ex. Kot, Parents)" maxlength="60" required>
       <button class="btn" aria-label="Créer"><svg class="i"><use href="#i-plus"/></svg></button>
     </form>
+  </div>
+</dialog>
+
+<!-- ============ Feuille : catégories ============ -->
+<dialog id="sheet-cats" class="sheet" aria-labelledby="cats-title">
+  <div class="sheet-in">
+    <div class="grabber"></div>
+    <div class="sheet-h"><h2 id="cats-title">Catégories</h2><button type="button" class="icon-btn" data-close aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div id="cats-list" class="group"></div>
+    <button id="cats-defaults" class="btn secondary block" style="margin-top:12px" hidden>Ajouter les catégories de base</button>
+    <form id="cats-create" class="add-line" style="margin-top:14px">
+      <input id="cat-emoji" class="field" style="max-width:64px;text-align:center" maxlength="4" placeholder="🍷" aria-label="Emoji">
+      <input id="cat-new" class="field" placeholder="Nouvelle catégorie (ex. Alcool)" maxlength="40" required>
+      <button class="btn" aria-label="Ajouter"><svg class="i"><use href="#i-plus"/></svg></button>
+    </form>
+    <p class="note">Touche une catégorie pour la renommer. Les produits d'une catégorie supprimée restent dans le frigo, sans catégorie.</p>
   </div>
 </dialog>
 

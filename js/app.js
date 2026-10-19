@@ -14,7 +14,7 @@ const DAY = 864e5;
 const BASE_URL = location.origin + location.pathname.replace(/index\.html$/, '');
 
 // ---------- État ----------
-const S = { user: null, profile: null, households: [], hid: null, items: [], shop: [], members: [], log: [], loc: '', q: '', view: 'stock', channel: null };
+const S = { user: null, profile: null, households: [], hid: null, items: [], shop: [], members: [], log: [], cats: [], loc: '', cat: '', q: '', view: 'stock', channel: null };
 
 // ---------- Utilitaires ----------
 const $ = (s) => document.querySelector(s);
@@ -95,7 +95,7 @@ async function boot() {
   } catch (e) { showApp(); fail(e); }
 }
 function showApp() { $('#splash').hidden = true; $('#app').hidden = false; render(); }
-function cache() { store.set('fz-cache', { uid: S.user.id, s: { profile: S.profile, households: S.households, hid: S.hid, items: S.items, shop: S.shop, members: S.members, log: S.log } }); }
+function cache() { store.set('fz-cache', { uid: S.user.id, s: { profile: S.profile, households: S.households, hid: S.hid, items: S.items, shop: S.shop, members: S.members, log: S.log, cats: S.cats } }); }
 
 async function loadProfile() {
   const { data, error } = await sb.from('profiles').select('*').eq('id', S.user.id).single();
@@ -115,13 +115,15 @@ async function loadHouseholds() {
 async function loadHousehold() {
   if (!S.hid) return;
   store.set('fz-hid', S.hid);
-  const [items, shop, members, log] = await Promise.all([
+  const [items, shop, members, log, cats] = await Promise.all([
     sb.from('items').select('*').eq('household_id', S.hid).order('expires_on'),
     sb.from('shopping_items').select('*').eq('household_id', S.hid).order('created_at'),
     sb.from('household_members').select('user_id, role, joined_at, profiles(display_name, avatar_url)').eq('household_id', S.hid).order('joined_at'),
-    sb.from('consumption_log').select('name, outcome, happened_on').eq('household_id', S.hid).gte('happened_on', plusDays(-30))]);
+    sb.from('consumption_log').select('name, outcome, happened_on').eq('household_id', S.hid).gte('happened_on', plusDays(-30)),
+    sb.from('household_categories').select('id, name, emoji, position').eq('household_id', S.hid).order('position').order('created_at')]);
   for (const r of [items, shop, members, log]) if (r.error) throw r.error;
-  Object.assign(S, { items: items.data, shop: shop.data, members: members.data, log: log.data });
+  Object.assign(S, { items: items.data, shop: shop.data, members: members.data, log: log.data, cats: cats.data || [] });
+  if (S.cat && !S.cats.some((c) => c.id === S.cat)) S.cat = '';
   cache(); subscribe(); mirrorImages();
 }
 async function rpc(fn, args) { const { data, error } = await sb.rpc(fn, args); if (error) throw error; return data; }
@@ -134,7 +136,7 @@ function subscribe() {
   subscribedTo = S.hid;
   const refresh = () => { clearTimeout(reloadTimer); reloadTimer = setTimeout(() => loadHousehold().then(render).catch(() => {}), 400); };
   S.channel = sb.channel('hh-' + S.hid);
-  for (const table of ['items', 'shopping_items', 'household_members'])
+  for (const table of ['items', 'shopping_items', 'household_members', 'household_categories'])
     S.channel.on('postgres_changes', { event: '*', schema: 'public', table, filter: `household_id=eq.${S.hid}` }, refresh);
   S.channel.subscribe();
 }
@@ -167,11 +169,22 @@ $('#loc-chips').innerHTML = [['', 'Tout'], ...Object.entries(LOCS).map(([k, [e, 
   .map(([k, l]) => `<button class="chip" data-loc="${k}" aria-pressed="${k === ''}">${l}</button>`).join('');
 $('#loc-chips').onclick = (e) => {
   const c = e.target.closest('.chip'); if (!c) return;
-  S.loc = c.dataset.loc; document.querySelectorAll('.chip').forEach((x) => x.setAttribute('aria-pressed', x === c)); renderStock();
+  S.loc = c.dataset.loc; document.querySelectorAll('#loc-chips .chip').forEach((x) => x.setAttribute('aria-pressed', x === c)); renderStock();
 };
+$('#cat-chips').onclick = (e) => {
+  const c = e.target.closest('.chip'); if (!c) return;
+  S.cat = c.dataset.cat; renderStock();
+};
+const catLabel = (c) => `${c.emoji ? c.emoji + ' ' : ''}${esc(c.name)}`;
+function renderCatChips() {
+  $('#cat-chips').hidden = !S.cats.length;
+  $('#cat-chips').innerHTML = [{ id: '', name: 'Toutes catégories' }, ...S.cats]
+    .map((c) => `<button class="chip" data-cat="${c.id}" aria-pressed="${c.id === S.cat}">${catLabel(c)}</button>`).join('');
+}
 $('#q').oninput = (e) => { S.q = e.target.value.trim().toLowerCase(); renderStock(); };
 
 function renderStock() {
+  renderCatChips();
   const all = S.items.map((i) => ({ ...i, n: daysLeft(i.expires_on) }));
   const exp = all.filter((i) => i.n < 0).length, soon = all.filter((i) => urgency(i.n) === 'o').length;
   $('#overview').innerHTML = all.length ? `<div><b>${all.length}</b><span>produits</span></div><div class="o"><b>${soon}</b><span>à manger vite</span></div><div class="r"><b>${exp}</b><span>périmés</span></div>` : '';
@@ -179,7 +192,7 @@ function renderStock() {
     $('#stock-list').innerHTML = `<div class="empty"><div class="big">🧊</div><h3>Ton frigo est vide</h3><p>Appuie sur <b>Ajouter</b> pour scanner ton premier produit.</p></div>`;
     return;
   }
-  const items = all.filter((i) => (!S.loc || i.location === S.loc) && (!S.q || i.name.toLowerCase().includes(S.q)));
+  const items = all.filter((i) => (!S.loc || i.location === S.loc) && (!S.cat || i.category_id === S.cat) && (!S.q || i.name.toLowerCase().includes(S.q)));
   if (!items.length) { $('#stock-list').innerHTML = `<div class="empty"><p>Aucun produit ne correspond.</p></div>`; return; }
   const groups = [['Périmés', 'r', (i) => i.n < 0], ['À manger vite', 'o', (i) => urgency(i.n) === 'o'],
     ['Cette semaine', '', (i) => !urgency(i.n) && i.n <= 7], ['Plus tard', '', (i) => !urgency(i.n) && i.n > 7]];
@@ -189,11 +202,11 @@ function renderStock() {
   }).join('');
 }
 function itemRow(i) {
-  const [emo, loc] = LOCS[i.location] || LOCS.other;
+  const [emo, loc] = LOCS[i.location] || LOCS.other; let c;
   return `<div class="row" data-id="${i.id}">
     <button class="thumb" data-act="${i.image_url ? 'zoom' : 'edit'}" aria-label="${i.image_url ? 'Voir la photo' : 'Modifier'}">${i.image_url ? `<img src="${esc(i.image_url)}" alt="" decoding="async">` : emo}</button>
     <button class="main" data-act="edit"><div class="title">${esc(i.name)}</div>
-      <div class="sub"><span class="badge ${urgency(i.n)}">${when(i.n, i.date_kind)}</span>${i.quantity > 1 ? `<span>×${i.quantity}</span>` : ''}<span>${loc}${i.note ? ' · ' + esc(i.note) : ''}</span></div></button>
+      <div class="sub"><span class="badge ${urgency(i.n)}">${when(i.n, i.date_kind)}</span>${i.quantity > 1 ? `<span>×${i.quantity}</span>` : ''}<span>${loc}${(c = S.cats.find((x) => x.id === i.category_id)) ? ' · ' + catLabel(c) : ''}${i.note ? ' · ' + esc(i.note) : ''}</span></div></button>
     <div class="row-actions"><button class="eat" data-act="eaten" aria-label="Consommé">${icon('eat')}</button><button class="waste" data-act="wasted" aria-label="Jeté">${icon('trash')}</button></div></div>`;
 }
 $('#stock-list').onclick = (e) => {
@@ -283,13 +296,30 @@ async function restore(it, gone) {
 }
 
 // ---------- Feuille produit ----------
-let editing = null, kind = 'dlc', loc = 'fridge', qty = 1, img = null, scanner = null;
+let editing = null, kind = 'dlc', loc = 'fridge', cat = null, qty = 1, img = null, scanner = null;
 $('#f-loc').innerHTML = Object.entries(LOCS).map(([k, [e, l]]) => `<button type="button" data-v="${k}">${e} ${l}</button>`).join('');
 $('#quick-items').innerHTML = VRAC.map(([e, n], k) => `<button type="button" data-k="${k}">${e} ${n}</button>`).join('');
 $('#quick-dates').innerHTML = QUICK_DATES.map(([l, n]) => `<button type="button" data-n="${n}">${l}</button>`).join('');
 const setSeg = (sel, v) => document.querySelectorAll(`${sel} button`).forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === v));
 $('#f-kind').onclick = (e) => { const b = e.target.closest('button'); if (b) setSeg('#f-kind', (kind = b.dataset.v)); };
 $('#f-loc').onclick = (e) => { const b = e.target.closest('button'); if (b) setSeg('#f-loc', (loc = b.dataset.v)); };
+function renderCatPick() {
+  $('#f-cat').innerHTML = [{ id: '', name: 'Aucune' }, ...S.cats].map((c) => `<button type="button" class="chip" data-v="${c.id}" aria-pressed="${c.id === (cat || '')}">${catLabel(c)}</button>`).join('')
+    + `<button type="button" class="chip add" data-manage>＋ Gérer</button>`;
+}
+const setCat = (v) => { cat = v || null; renderCatPick(); };
+$('#f-cat').onclick = (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.manage !== undefined) return openCats(); setCat(b.dataset.v);
+};
+// Suggestion de catégorie d'après les catégories Open Food Facts (si le foyer a une catégorie au nom correspondant)
+const CAT_GUESS = [[/wine|beer|spirit|alcoh|liqueur|cider/, /alcool|vin|bi[eè]re/i], [/meat|poultry|ham|sausage|charcut/, /viande|charcut/i],
+  [/fish|seafood/, /poisson|mer/i], [/dair|chees|yogurt|milk|butter|cream/, /lait|fromage|cr[eè]merie/i], [/fruit|vegetable/, /fruit|l[ée]gume/i],
+  [/beverage|drink|juice|water|soda/, /boisson/i], [/bread|bakery|pastr/, /pain|boulang/i], [/frozen/, /surgel/i], [/snack|chocolate|candy|biscuit|sweet/, /snack|sucr|go[uû]ter/i]];
+function guessCat(tags) {
+  for (const [re, name] of CAT_GUESS) if (re.test(tags)) { const c = S.cats.find((x) => name.test(x.name)); if (c) return c.id; }
+  return null;
+}
 $('.stepper').onclick = (e) => { const s = +e.target.dataset.step; if (s) { qty = Math.min(999, Math.max(1, qty + s)); $('#f-qty').value = qty; } };
 $('#quick-items').onclick = (e) => {
   const v = VRAC[e.target.dataset.k]; if (!v) return;
@@ -304,7 +334,7 @@ function openItem(item = null) {
   $('#scan-zone').hidden = !!item; $('#quick-items').hidden = !!item; $('#item-delete').hidden = !item;
   $('#item-save').textContent = item ? 'Enregistrer' : 'Ajouter';
   $('#f-name').value = item?.name || ''; $('#f-date').value = item?.expires_on || ''; $('#f-note').value = item?.note || '';
-  setSeg('#f-kind', (kind = item?.date_kind || 'dlc')); setSeg('#f-loc', (loc = item?.location || 'fridge'));
+  setSeg('#f-kind', (kind = item?.date_kind || 'dlc')); setSeg('#f-loc', (loc = item?.location || 'fridge')); setCat(item?.category_id);
   $('#f-qty').value = qty = item?.quantity || 1;
   setProduct(item ? { name: item.name, image_url: item.image_url, barcode: item.barcode } : null);
   status('');
@@ -327,14 +357,14 @@ $('#item-form').onsubmit = async (e) => {
   if (!name) { $('#f-name').focus(); return toast('Indique le nom du produit'); }
   if (!date) { $('#f-date').focus(); return toast('Choisis une date de péremption'); }
   const code = $('#item-form').dataset.code || null;
-  const row = { name, expires_on: date, date_kind: kind, location: loc, quantity: qty, note: $('#f-note').value.trim() || null, barcode: code, image_url: img };
+  const row = { name, expires_on: date, date_kind: kind, location: loc, quantity: qty, note: $('#f-note').value.trim() || null, barcode: code, image_url: img, category_id: cat };
   $('#item-save').disabled = true;
   try {
     if (editing) await sb.from('items').update(row).eq('id', editing.id).throwOnError();
     else await sb.from('items').insert({ ...row, household_id: S.hid }).throwOnError();
     if (code) {
-      const p = store.get('fz-products') || {}; p[code] = { name, image_url: img, location: loc, date_kind: kind }; store.set('fz-products', p);
-      sb.from('household_products').upsert({ household_id: S.hid, barcode: code, name, image_url: img, location: loc, date_kind: kind, updated_at: new Date().toISOString() }).then(() => {});
+      const p = store.get('fz-products') || {}; p[code] = { name, image_url: img, location: loc, date_kind: kind, category_id: cat }; store.set('fz-products', p);
+      sb.from('household_products').upsert({ household_id: S.hid, barcode: code, name, image_url: img, location: loc, date_kind: kind, category_id: cat, updated_at: new Date().toISOString() }).then(() => {});
     }
     $('#sheet-item').close(); vibrate(20);
     toast(editing ? 'Modifié ✓' : `${name} ajouté ✓`);
@@ -419,10 +449,10 @@ async function onCode(code) {
     status('Produit pesé ou à la coupe : son code change à chaque achat. Tape son nom.'); return $('#f-name').focus();
   }
   const known = (store.get('fz-products') || {})[code] || S.items.find((i) => i.barcode === code);
-  if (known) return fillFrom({ barcode: code, name: known.name, image_url: known.image_url, location: known.location, date_kind: known.date_kind }, 'Produit reconnu ✓');
+  if (known) return fillFrom({ barcode: code, name: known.name, image_url: known.image_url, location: known.location, date_kind: known.date_kind, category_id: known.category_id }, 'Produit reconnu ✓');
   status('Recherche du produit…');
   const [shared, ...found] = await Promise.all([
-    sb.from('household_products').select('name, image_url, location, date_kind').eq('household_id', S.hid).eq('barcode', code).maybeSingle().then((r) => r.data, () => null),
+    sb.from('household_products').select('name, image_url, location, date_kind, category_id').eq('household_id', S.hid).eq('barcode', code).maybeSingle().then((r) => r.data, () => null),
     ...OFF_HOSTS.map((h) => lookup(h, code))]);
   if (shared) return fillFrom({ barcode: code, ...shared }, 'Produit reconnu ✓');
   const i = found.findIndex(Boolean), p = found[i];
@@ -433,7 +463,7 @@ async function onCode(code) {
   const cats = (p.categories_tags || []).join(' ');
   const name = [p.product_name_fr || p.product_name, p.brands?.split(',')[0]?.trim()].filter(Boolean).join(' · ');
   const location = i > 0 ? 'other' : /frozen|surgel/.test(cats) ? 'freezer' : /dair|meat|fish|fresh|yogurt|chees|dessert|ham|charcut/.test(cats) ? 'fridge' : 'pantry';
-  fillFrom({ barcode: code, name, image_url: p.image_front_small_url?.startsWith('https://') ? p.image_front_small_url : null, location }, 'Trouvé ✓ Indique la date');
+  fillFrom({ barcode: code, name, image_url: p.image_front_small_url?.startsWith('https://') ? p.image_front_small_url : null, location, category_id: guessCat(cats) }, 'Trouvé ✓ Indique la date');
 }
 // Photo prise dans l'app (produit inconnu ou sans photo) : miniature + HD dans le bucket
 async function uploadPhoto(file) {
@@ -458,6 +488,7 @@ function fillFrom(p, msg) {
   setProduct(p); $('#f-name').value = p.name || '';
   if (p.location) setSeg('#f-loc', (loc = p.location));
   if (p.date_kind) setSeg('#f-kind', (kind = p.date_kind));
+  if (p.category_id && S.cats.some((c) => c.id === p.category_id)) setCat(p.category_id);
   status(msg, true);
   $('#f-date').focus(); try { $('#f-date').showPicker(); } catch {}
 }
@@ -504,7 +535,7 @@ function renderStats() {
 
 // ---------- Foyer ----------
 function renderHome() {
-  const hh = S.households.find((h) => h.id === S.hid);
+  const hh = S.households.find((h) => h.id === S.hid); renderCats();
   $('#members').innerHTML = S.members.map((m) => `<div class="setting">${avatar(m.profiles)}<span class="main"><b>${esc(m.profiles?.display_name || 'Membre')}</b>${m.user_id === S.user.id ? ' <span class="sub">(toi)</span>' : ''}</span>
     ${m.role === 'owner' ? '<span class="role">Admin</span>' : hh?.role === 'owner' ? `<button class="icon-btn" data-kick="${m.user_id}" aria-label="Retirer du foyer">${icon('x')}</button>` : ''}</div>`).join('');
   $('#btn-rename').hidden = hh?.role !== 'owner';
@@ -530,6 +561,53 @@ $('#btn-invite').onclick = async () => {
     else { await navigator.clipboard.writeText(`${text}\n${url}`); toast("Lien d'invitation copié 📋"); }
   } catch (e) { fail(e); }
 };
+// ---------- Catégories ----------
+const DEFAULT_CATS = [['🥩', 'Viande'], ['🐟', 'Poisson'], ['🧀', 'Produits laitiers'], ['🥦', 'Fruits & légumes'], ['🍞', 'Boulangerie'],
+  ['🥫', 'Épicerie'], ['🥤', 'Boissons'], ['🍷', 'Alcool'], ['🍫', 'Snacks & sucré'], ['🍽️', 'Restes']];
+function openCats() { renderCats(); openSheet('#sheet-cats'); }
+$('#btn-cats').onclick = openCats;
+function renderCats() {
+  $('#cats-list').innerHTML = S.cats.length ? S.cats.map((c) => `<div class="setting" data-id="${c.id}"><button class="main" data-rename style="text-align:left">${catLabel(c)}</button>
+    <button class="icon-btn" data-del aria-label="Supprimer ${esc(c.name)}">${icon('x')}</button></div>`).join('')
+    : '<div class="setting"><span class="main sub">Aucune catégorie pour l\'instant.</span></div>';
+  $('#cats-defaults').hidden = !!S.cats.length;
+  $('#cats-sub').textContent = S.cats.length ? S.cats.slice(0, 4).map((c) => c.name).join(', ') + (S.cats.length > 4 ? '…' : '') : 'Viande, alcool…';
+  if ($('#sheet-item').open) renderCatPick();
+}
+async function reloadCats() {
+  const { data } = await sb.from('household_categories').select('id, name, emoji, position').eq('household_id', S.hid).order('position').order('created_at');
+  S.cats = data || []; cache(); renderCats(); render();
+}
+$('#cats-create').onsubmit = async (e) => {
+  e.preventDefault();
+  const name = $('#cat-new').value.trim(), emoji = $('#cat-emoji').value.trim() || null; if (!name) return;
+  try {
+    await sb.from('household_categories').insert({ household_id: S.hid, name, emoji, position: S.cats.length }).throwOnError();
+    $('#cat-new').value = ''; $('#cat-emoji').value = ''; await reloadCats();
+  } catch (err) { fail(err); }
+};
+$('#cats-defaults').onclick = async () => {
+  try {
+    await sb.from('household_categories').insert(DEFAULT_CATS.map(([emoji, name], position) => ({ household_id: S.hid, name, emoji, position }))).throwOnError();
+    await reloadCats();
+  } catch (err) { fail(err); }
+};
+$('#cats-list').onclick = async (e) => {
+  const row = e.target.closest('[data-id]'); if (!row) return;
+  const c = S.cats.find((x) => x.id === row.dataset.id); if (!c) return;
+  try {
+    if (e.target.closest('[data-del]')) {
+      if (!confirm(`Supprimer la catégorie « ${c.name} » ?`)) return;
+      await sb.from('household_categories').delete().eq('id', c.id).throwOnError();
+      S.items.forEach((i) => { if (i.category_id === c.id) i.category_id = null; }); if (cat === c.id) cat = null;
+    } else if (e.target.closest('[data-rename]')) {
+      const name = prompt('Nom de la catégorie', c.name)?.trim(); if (!name || name === c.name) return;
+      await sb.from('household_categories').update({ name: name.slice(0, 40) }).eq('id', c.id).throwOnError();
+    }
+    await reloadCats();
+  } catch (err) { fail(err); }
+};
+
 $('#btn-rename').onclick = async () => {
   const hh = S.households.find((h) => h.id === S.hid);
   const name = prompt('Nom du foyer', hh.name)?.trim(); if (!name || name === hh.name) return;

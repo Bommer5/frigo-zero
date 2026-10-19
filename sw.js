@@ -1,5 +1,5 @@
 // Service worker : app utilisable hors ligne + réception des rappels push.
-const CACHE = 'fz-v8', IMG_CACHE = 'fz-img';
+const CACHE = 'fz-v9', IMG_CACHE = 'fz-img';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'privacy.html',
   'icons/icon.svg', 'icons/icon-192.png'];
 
@@ -12,8 +12,9 @@ self.addEventListener('activate', (e) => {
 const CACHEABLE = (u) => u.origin === location.origin || u.hostname === 'unpkg.com' || u.hostname === 'cdn.jsdelivr.net';
 self.addEventListener('fetch', (e) => {
   const u = new URL(e.request.url);
-  // Photos produits (Open Food Facts / bucket Supabase) : cache d'abord (une image ne change pas d'URL), réseau seulement la 1re fois
-  if (e.request.method === 'GET' && (/(^|\.)open(food|products|beauty)facts\.org$/.test(u.hostname) && u.pathname.startsWith('/images/') || u.pathname.startsWith('/storage/v1/object/public/product-images/'))) {
+  // Photos produits (Open Food Facts / bucket Supabase) affichées par <img> : cache d'abord
+  // (pas pour fetch() en CORS : la copie vers le bucket doit lire l'image, une réponse opaque en cache la ferait échouer) (une image ne change pas d'URL), réseau seulement la 1re fois
+  if (e.request.method === 'GET' && e.request.mode === 'no-cors' && (/(^|\.)open(food|products|beauty)facts\.org$/.test(u.hostname) && u.pathname.startsWith('/images/') || u.pathname.startsWith('/storage/v1/object/public/product-images/'))) {
     e.respondWith(caches.open(IMG_CACHE).then((c) => c.match(e.request).then((hit) => hit || fetch(e.request).then((r) => {
       if (r.ok || r.type === 'opaque') c.put(e.request, r.clone()); return r;
     }))));
