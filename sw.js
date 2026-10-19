@@ -1,7 +1,7 @@
 // Service worker : app utilisable hors ligne + réception des rappels push.
-const CACHE = 'fz-v11', IMG_CACHE = 'fz-img';
+const CACHE = 'fz-v12', IMG_CACHE = 'fz-img';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'privacy.html',
-  'icons/icon.svg', 'icons/icon-192.png'];
+  'icons/favicon-32.png', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
