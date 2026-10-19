@@ -208,6 +208,8 @@ const bigUrl = (src) => src.replace(/\.(100|200)\.jpg$/, '.400.jpg');
 function zoom(src, name = '') {
   if (!src) return;
   const im = $('#zoom-img'), big = bigUrl(src);
+  // Dans un <dialog> modal ouvert (top layer), sinon l'overlay resterait caché derrière
+  (document.querySelector('dialog[open]') || document.body).append($('#zoom'));
   im.src = src; im.alt = name; $('#zoom').hidden = false;
   if (big !== src) { const pre = new Image(); pre.onload = () => { if (im.src === src || im.src.endsWith(src)) im.src = big; }; pre.src = big; }
 }
