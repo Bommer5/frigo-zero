@@ -448,6 +448,11 @@ async function onCode(code) {
     setProduct(null);
     status('Produit pesé ou à la coupe : son code change à chaque achat. Tape son nom.'); return $('#f-name').focus();
   }
+  // Même code scanné deux fois dans le formulaire : +1 à la quantité
+  if (!editing && $('#item-form').dataset.code === code) { $('#f-qty').value = qty = Math.min(999, qty + 1); return status(`Quantité : ${qty}`, true); }
+  // Déjà dans le frigo : +1 directement sur ce produit (celui qui périme en premier)
+  const dup = !editing && S.items.filter((i) => i.barcode === code).sort((a, b) => a.expires_on.localeCompare(b.expires_on))[0];
+  if (dup && dup.quantity < 999) return bumpQty(dup);
   const known = (store.get('fz-products') || {})[code] || S.items.find((i) => i.barcode === code);
   if (known) return fillFrom({ barcode: code, name: known.name, image_url: known.image_url, location: known.location, date_kind: known.date_kind, category_id: known.category_id }, 'Produit reconnu ✓');
   status('Recherche du produit…');
@@ -484,6 +489,16 @@ $('#f-photo').onchange = async (e) => {
   catch (err) { fail(err); }
   updPhoto();
 };
+async function bumpQty(item) {
+  const before = item.quantity;
+  item.quantity++; $('#sheet-item').close(); render(); vibrate(20);
+  try {
+    await sb.from('items').update({ quantity: item.quantity }).eq('id', item.id).throwOnError();
+    toast(`${item.name} ×${item.quantity} ✓`, 'Annuler', async () => {
+      try { await sb.from('items').update({ quantity: before }).eq('id', item.id).throwOnError(); item.quantity = before; render(); } catch (e) { fail(e); }
+    });
+  } catch (e) { item.quantity = before; render(); fail(e); }
+}
 function fillFrom(p, msg) {
   setProduct(p); $('#f-name').value = p.name || '';
   if (p.location) setSeg('#f-loc', (loc = p.location));
