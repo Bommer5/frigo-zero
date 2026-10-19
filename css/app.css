@@ -237,3 +237,6 @@ label.lbl { display: block; font-size: .85rem; font-weight: 600; color: var(--te
 .zoom[hidden] { display: none; }
 .zoom img { width: min(100%, 600px); max-height: 100%; object-fit: contain; border-radius: 12px; background: #fff; }
 #pp-img { cursor: zoom-in; }
+.photo-add { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; padding: 8px 12px; border: 1.5px dashed var(--line); border-radius: 12px; color: var(--text-2); font-size: .9rem; cursor: pointer; }
+.photo-add[hidden] { display: none; }
+.photo-add img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; background: #fff; }

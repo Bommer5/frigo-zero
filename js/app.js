@@ -215,7 +215,7 @@ function zoom(src, name = '') {
 }
 $('#zoom').onclick = () => { $('#zoom').hidden = true; $('#zoom-img').removeAttribute('src'); };
 // Open Food Facts met 5-10 s à servir une image : on la copie une fois (400 px) dans le bucket Supabase (CDN rapide)
-const OFF_IMG = /^https:\/\/images\.openfoodfacts\.org\//, mirrors = new Map();
+const OFF_IMG = /^https:\/\/images\.open(food|products|beauty)facts\.org\//, mirrors = new Map();
 function mirror(code, src) {
   if (!code || !src || !OFF_IMG.test(src) || !/^\d{6,14}$/.test(code)) return Promise.resolve(src);
   if (!mirrors.has(code)) mirrors.set(code, (async () => {
@@ -234,6 +234,7 @@ async function mirrorImages() {
     const old = i.image_url, url = await mirror(i.barcode, old);
     if (url === old) continue;
     await sb.from('items').update({ image_url: url }).eq('household_id', S.hid).eq('image_url', old);
+    await sb.from('household_products').update({ image_url: url }).eq('household_id', S.hid).eq('barcode', i.barcode);
     S.items.forEach((x) => { if (x.image_url === old) x.image_url = url; });
     const p = store.get('fz-products') || {}; if (p[i.barcode]) { p[i.barcode].image_url = url; store.set('fz-products', p); }
     render();
@@ -300,6 +301,7 @@ function setProduct(p) {
   if (p?.barcode) { $('#pp-img').src = img || 'icons/icon-192.png'; $('#pp-name').textContent = p.name || 'Produit inconnu'; $('#pp-code').textContent = p.barcode; }
   const off = img;
   if (OFF_IMG.test(off || '')) mirror(p.barcode, off).then((url) => { if (img === off && url !== off) { img = url; $('#pp-img').src = url; } });
+  updPhoto();
 }
 const status = (msg, ok) => { const s = $('#scan-status'); s.textContent = msg; s.classList.toggle('ok', !!ok); };
 $('#sheet-item').addEventListener('close', stopScan);
@@ -315,7 +317,10 @@ $('#item-form').onsubmit = async (e) => {
   try {
     if (editing) await sb.from('items').update(row).eq('id', editing.id).throwOnError();
     else await sb.from('items').insert({ ...row, household_id: S.hid }).throwOnError();
-    if (code) { const p = store.get('fz-products') || {}; p[code] = { name, image_url: img, location: loc, date_kind: kind }; store.set('fz-products', p); }
+    if (code) {
+      const p = store.get('fz-products') || {}; p[code] = { name, image_url: img, location: loc, date_kind: kind }; store.set('fz-products', p);
+      sb.from('household_products').upsert({ household_id: S.hid, barcode: code, name, image_url: img, location: loc, date_kind: kind, updated_at: new Date().toISOString() }).then(() => {});
+    }
     $('#sheet-item').close(); vibrate(20);
     toast(editing ? 'Modifié ✓' : `${name} ajouté ✓`);
     await loadHousehold(); render();
@@ -384,23 +389,61 @@ function stopScan() {
   $('#reader').replaceChildren();
   $('#scan-box').hidden = true; $('#btn-scan span').textContent = 'Scanner';
 }
+const OFF_HOSTS = ['openfoodfacts', 'openproductsfacts', 'openbeautyfacts']; // alimentaire, puis maison/hygiène, puis cosmétiques
+async function lookup(host, code) {
+  try {
+    const r = await fetch(`https://world.${host}.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name_fr,product_name,brands,image_front_small_url,categories_tags`);
+    const j = await r.json(); return j.status === 1 ? j.product : null;
+  } catch { return null; }
+}
 async function onCode(code) {
   vibrate(60);
+  // Codes « magasin » (préfixe 2) : produits pesés ou à la coupe, le code contient le prix/poids et change à chaque achat
+  if (/^2\d{12}$/.test(code)) {
+    setProduct(null);
+    status('Produit pesé ou à la coupe : son code change à chaque achat. Tape son nom.'); return $('#f-name').focus();
+  }
   const known = (store.get('fz-products') || {})[code] || S.items.find((i) => i.barcode === code);
   if (known) return fillFrom({ barcode: code, name: known.name, image_url: known.image_url, location: known.location, date_kind: known.date_kind }, 'Produit reconnu ✓');
   status('Recherche du produit…');
-  try {
-    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}.json?fields=product_name_fr,product_name,brands,image_front_small_url,categories_tags`);
-    const j = await r.json(); if (j.status !== 1) throw new Error('unknown');
-    const p = j.product, cats = (p.categories_tags || []).join(' ');
-    const name = [p.product_name_fr || p.product_name, p.brands?.split(',')[0]?.trim()].filter(Boolean).join(' · ');
-    const location = /frozen|surgel/.test(cats) ? 'freezer' : /dair|meat|fish|fresh|yogurt|chees|dessert|ham|charcut/.test(cats) ? 'fridge' : 'pantry';
-    fillFrom({ barcode: code, name, image_url: p.image_front_small_url?.startsWith('https://') ? p.image_front_small_url : null, location }, 'Trouvé ✓ Indique la date');
-  } catch {
+  const [shared, ...found] = await Promise.all([
+    sb.from('household_products').select('name, image_url, location, date_kind').eq('household_id', S.hid).eq('barcode', code).maybeSingle().then((r) => r.data, () => null),
+    ...OFF_HOSTS.map((h) => lookup(h, code))]);
+  if (shared) return fillFrom({ barcode: code, ...shared }, 'Produit reconnu ✓');
+  const i = found.findIndex(Boolean), p = found[i];
+  if (!p) {
     setProduct({ barcode: code, name: '' });
-    status('Produit inconnu : tape son nom.'); $('#f-name').focus();
+    status('Produit inconnu : tape son nom (et ajoute une photo si tu veux). Le foyer le reconnaîtra ensuite.'); return $('#f-name').focus();
   }
+  const cats = (p.categories_tags || []).join(' ');
+  const name = [p.product_name_fr || p.product_name, p.brands?.split(',')[0]?.trim()].filter(Boolean).join(' · ');
+  const location = i > 0 ? 'other' : /frozen|surgel/.test(cats) ? 'freezer' : /dair|meat|fish|fresh|yogurt|chees|dessert|ham|charcut/.test(cats) ? 'fridge' : 'pantry';
+  fillFrom({ barcode: code, name, image_url: p.image_front_small_url?.startsWith('https://') ? p.image_front_small_url : null, location }, 'Trouvé ✓ Indique la date');
 }
+// Photo prise dans l'app (produit inconnu ou sans photo) : réduite à 600 px puis envoyée dans le bucket
+async function uploadPhoto(file) {
+  const bmp = await createImageBitmap(file), k = Math.min(1, 600 / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const blob = await new Promise((ok) => c.toBlob(ok, 'image/jpeg', 0.8));
+  const path = `u/${crypto.randomUUID()}.jpg`;
+  const { error } = await sb.storage.from('product-images').upload(path, blob, { contentType: 'image/jpeg', cacheControl: '31536000', upsert: false });
+  if (error) throw error;
+  return sb.storage.from('product-images').getPublicUrl(path).data.publicUrl;
+}
+function updPhoto() {
+  const preview = !$('#product-preview').hidden;
+  $('#photo-add').hidden = !!(img && preview);
+  $('#pa-img').hidden = !img; if (img) $('#pa-img').src = img;
+  $('#photo-add span').textContent = img ? 'Changer la photo' : '📷 Ajouter une photo';
+}
+$('#f-photo').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  $('#photo-add span').textContent = 'Envoi de la photo…';
+  try { img = await uploadPhoto(f); if (!$('#product-preview').hidden) $('#pp-img').src = img; }
+  catch (err) { fail(err); }
+  updPhoto();
+};
 function fillFrom(p, msg) {
   setProduct(p); $('#f-name').value = p.name || '';
   if (p.location) setSeg('#f-loc', (loc = p.location));

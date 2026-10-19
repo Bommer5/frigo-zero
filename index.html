@@ -11,7 +11,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Frigo Zéro">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org https://images.openfoodfacts.org https://cdn.jsdelivr.net https://fastly.jsdelivr.net; media-src 'self' blob:; worker-src 'self'; base-uri 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org https://images.openfoodfacts.org https://world.openproductsfacts.org https://images.openproductsfacts.org https://world.openbeautyfacts.org https://images.openbeautyfacts.org https://cdn.jsdelivr.net https://fastly.jsdelivr.net; media-src 'self' blob:; worker-src 'self'; base-uri 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -162,6 +162,7 @@
     <label class="lbl" for="f-name">Produit</label>
     <input id="f-name" class="field" required maxlength="120" placeholder="ex. Yaourt nature" autocomplete="off">
     <div class="quick" id="quick-items"></div>
+    <label id="photo-add" class="photo-add"><img id="pa-img" alt="" hidden><span>📷 Ajouter une photo</span><input type="file" id="f-photo" accept="image/*" capture="environment" hidden></label>
 
     <label class="lbl" for="f-date">Date de péremption</label>
     <input id="f-date" class="field" type="date" required>
