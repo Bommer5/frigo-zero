@@ -1,6 +1,6 @@
 # 🧊 Frigo Zéro
 
-Application web (PWA) gratuite et open source pour suivre les dates de péremption de ton frigo, sur **iPhone et Android**, sans compte, sans pub, sans IA.
+Application web (PWA) gratuite et open source pour suivre les dates de péremption de ton frigo, sur **iPhone et Android**, connexion Google, frigo partagé, sans pub, sans IA.
 
 **👉 Utiliser l'app : https://bommer5.github.io/frigo-zero/**
 
@@ -14,34 +14,43 @@ Application web (PWA) gratuite et open source pour suivre les dates de pérempti
 - 🛒 **Liste de courses**
 - 📊 **Bilan anti-gaspi** : % de produits sauvés, ce que tu jettes le plus
 - 🔔 **Rappels quotidiens** de péremption (voir ci-dessous)
-- 🔗 **Partage du stock** par lien (coloc, famille)
-- 💾 Export / import JSON, fonctionne **hors ligne**, mode sombre
+- 👨‍👩‍👧 **Foyers partagés** avec invitations, synchro en temps réel
+- 💾 Export des données, affichage **hors ligne**, mode sombre
 - Les produits déjà scannés sont mémorisés (re-scan instantané, même hors ligne)
 
 ## Installer
 - **iPhone** : ouvre le lien dans Safari → Partager ⬆️ → « Sur l'écran d'accueil »
 - **Android** : ouvre le lien dans Chrome → « Installer l'application »
 
+## Comptes, foyers et partage
+- Connexion avec **Google** (Supabase Auth, flux PKCE). Aucun mot de passe stocké.
+- Chaque utilisateur a un ou plusieurs **foyers** (« Mon frigo », « Kot », « Parents »…).
+- **Inviter quelqu'un** : un lien valable 7 jours ; la personne se connecte et rejoint le foyer.
+- Synchronisation **en temps réel** entre membres (Supabase Realtime).
+
 ## Notifications
-| | Android | iPhone (iOS 16.4+) |
-|---|---|---|
-| À l'ouverture de l'app | ✅ | ✅ |
-| En arrière-plan sans serveur (Periodic Sync) | ✅ (app installée) | ❌ |
-| Push via le serveur `server/` | ✅ | ✅ (app installée) |
+Rappel quotidien à l'heure choisie, envoyé en **Web Push** (Android et iPhone iOS 16.4+ avec l'app installée).
+Une fonction Edge (`supabase/functions/send-reminders`) est appelée toutes les 15 min par `pg_cron`.
 
-Apple ne permet pas à une web app de programmer seule une notification : pour les rappels en arrière-plan sur iPhone, il faut le petit serveur de push.
-
-### Serveur de push (facultatif)
-```bash
-cd server && docker build -t frigo-zero-push . && docker run -d -p 8787:8787 -v fz-state:/app/state frigo-zero-push
-docker logs <conteneur>   # affiche la clé publique VAPID
-```
-Puis renseigne `pushServer` et `vapidPublicKey` dans `config.js`. Le serveur ne stocke que l'abonnement push et les noms/dates des produits.
+## Sécurité & vie privée
+- Postgres (Supabase, Francfort 🇪🇺), chiffré au repos (AES-256) et en transit (TLS).
+- **Row Level Security** sur toutes les tables : on ne voit que les données de ses foyers.
+- Fonctions `security definer` avec `search_path` vide, droits révoqués pour `anon`.
+- Secrets (clé VAPID privée, secret cron) dans les secrets Supabase / Vault, jamais dans le dépôt.
+- Content-Security-Policy stricte, échappement HTML systématique.
+- RGPD : export des données et suppression du compte depuis l'app. [Politique de confidentialité](privacy.html)
 
 ## Technique
-HTML/CSS/JS vanilla, aucune étape de build. Données dans `localStorage`. Scan : [html5-qrcode](https://github.com/mebjas/html5-qrcode) (ZXing). Inspiré de [Dispensa](https://f-droid.org/packages/eu.frigo.dispensa), Grocy et FridgeBuddy.
+HTML/CSS/JS vanilla (modules ES), sans étape de build. Scan : [html5-qrcode](https://github.com/mebjas/html5-qrcode) (ZXing).
+Données produits : [Open Food Facts](https://world.openfoodfacts.org). Inspiré de [Dispensa](https://f-droid.org/packages/eu.frigo.dispensa), Grocy, FridgeBuddy.
 
-Développement local : `python3 -m http.server` puis http://localhost:8000.
+```
+index.html, css/, js/       PWA
+sw.js                       service worker (hors ligne + push)
+supabase/migrations/        schéma SQL, RLS, fonctions
+supabase/functions/         fonction Edge des rappels
+```
+Développement local : `python3 -m http.server 8765` puis http://localhost:8765.
 
 ## Licence
 MIT. Données produits © contributeurs Open Food Facts, licence ODbL.

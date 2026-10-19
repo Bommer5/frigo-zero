@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confidentialité · Frigo Zéro</title>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg: #f4f5f2; --text: #15181a; --text-2: #5d6560; --accent: #12a150; color-scheme: light dark; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d0f0e; --text: #eef1ef; --text-2: #9aa29d; --accent: #2fc26c; } }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif; }
+  main { max-width: 680px; margin: auto; padding: 32px 20px 64px; }
+  h1 { letter-spacing: -.02em; } h2 { font-size: 1.1rem; margin-top: 28px; }
+  p, li { color: var(--text-2); } a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="./">← Retour à l'app</a></p>
+  <h1>Politique de confidentialité</h1>
+  <p>Dernière mise à jour : 19 octobre 2026</p>
+
+  <h2>Qui sommes-nous ?</h2>
+  <p>Frigo Zéro est une application gratuite et open source (<a href="https://github.com/Bommer5/frigo-zero">code source</a>) éditée à titre personnel par Nathan Brico, Belgique. Contact : nathan23.brico@gmail.com.</p>
+
+  <h2>Données collectées</h2>
+  <ul>
+    <li><b>Compte</b> : nom, adresse e-mail et photo de profil fournis par Google lors de la connexion.</li>
+    <li><b>Contenu</b> : les produits, dates de péremption, liste de courses et historique « consommé / jeté » que tu saisis.</li>
+    <li><b>Notifications</b> : si tu les actives, l'adresse technique d'abonnement push de ton appareil.</li>
+    <li><b>Réglages</b> : fuseau horaire et heure de rappel.</li>
+  </ul>
+  <p>Aucune publicité, aucun traceur, aucune revente de données. Aucune IA n'analyse tes données.</p>
+
+  <h2>Finalité et base légale</h2>
+  <p>Ces données servent uniquement à faire fonctionner le service (afficher ton stock, le partager avec les membres de ton foyer, t'envoyer les rappels). Base légale : exécution du service que tu demandes (art. 6.1.b RGPD).</p>
+
+  <h2>Qui y a accès ?</h2>
+  <p>Uniquement toi et les membres des foyers que tu rejoins. L'accès est contrôlé directement dans la base de données (Row Level Security). Les noms de produits scannés sont recherchés sur Open Food Facts (aucune donnée personnelle n'est envoyée).</p>
+
+  <h2>Hébergement et sécurité</h2>
+  <p>Les données sont hébergées par Supabase dans l'Union européenne (Francfort, Allemagne). Elles sont chiffrées en transit (HTTPS/TLS) et au repos (AES-256). La connexion se fait via Google, Frigo Zéro ne stocke aucun mot de passe.</p>
+
+  <h2>Durée de conservation</h2>
+  <p>Tes données sont conservées tant que ton compte existe. L'historique « consommé / jeté » sert au bilan des 30 derniers jours.</p>
+
+  <h2>Tes droits</h2>
+  <p>Depuis l'onglet <b>Foyer</b> de l'app, tu peux à tout moment <b>exporter</b> tes données (droit d'accès et de portabilité) et <b>supprimer ton compte</b> (droit à l'effacement), ce qui efface immédiatement tes données. Pour toute autre demande, écris à l'adresse ci-dessus. Tu peux aussi introduire une réclamation auprès de l'Autorité de protection des données (Belgique).</p>
+</main>
+</body>
+</html>

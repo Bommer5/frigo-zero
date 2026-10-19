@@ -4,120 +4,217 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Frigo Zéro</title>
-<meta name="description" content="Suis les dates de péremption de ton frigo, scanne tes courses, gaspille zéro.">
-<meta name="theme-color" content="#16a34a">
+<meta name="description" content="Suis les dates de péremption de ton frigo, à plusieurs. Scanne tes courses, gaspille zéro.">
+<meta name="theme-color" content="#f4f5f2" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d0f0e" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Frigo Zéro">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://world.openfoodfacts.org https://cdn.jsdelivr.net; media-src 'self' blob:; worker-src 'self'; base-uri 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<header>
-  <h1>🧊 Frigo Zéro</h1>
-  <button id="btn-settings" class="icon" aria-label="Réglages">⚙️</button>
-</header>
 
-<nav class="tabs">
-  <button data-tab="stock" class="active">Stock</button>
-  <button data-tab="courses">Courses</button>
-  <button data-tab="stats">Bilan</button>
-</nav>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h7.7a2 2 0 0 0 2-1.5L21 8H6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M16 3.5a4 4 0 0 1 0 9M22 21a7 7 0 0 0-4-6.3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M11 8v8M15 8v8M18 8v8"/></symbol>
+  <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></symbol>
+  <symbol id="i-eat" viewBox="0 0 24 24"><path d="M3 2v7a3 3 0 0 0 6 0V2M6 2v20M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3Zm0 0v7"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8M16 6l-4-4-4 4M12 2v13"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M9 22V12h6v10"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></symbol>
+  <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.6v16.8a1 1 0 0 1-1.2 1L5 21V5.6a2 2 0 0 1 1.5-2l5-1.3a1 1 0 0 1 1.5 1Z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
+</svg>
 
-<main>
-  <section id="tab-stock">
-    <div id="install-hint" class="banner" hidden></div>
-    <div class="filters">
-      <input id="search" type="search" placeholder="Rechercher…">
-      <select id="filter-loc"></select>
-    </div>
-    <div id="summary" class="summary"></div>
-    <ul id="list" class="list"></ul>
-    <p id="empty" class="empty" hidden>Ton frigo est vide. Appuie sur <b>+</b> pour scanner un produit.</p>
-  </section>
+<div id="splash" class="splash"><div class="spinner" role="status" aria-label="Chargement"></div></div>
 
-  <section id="tab-courses" hidden>
-    <form id="shop-form" class="row">
-      <input id="shop-input" class="grow" placeholder="Ajouter à la liste…" autocomplete="off">
-      <button>Ajouter</button>
+<!-- ============ Connexion ============ -->
+<section id="login" class="login" hidden>
+  <img class="logo" src="icons/icon-192.png" alt="">
+  <h1>Frigo Zéro</h1>
+  <p class="tag">Le frigo partagé qui te prévient avant que ça périme.</p>
+  <ul class="features">
+    <li><span class="e">📷</span><span><b>Scanne</b> tes courses en une seconde</span></li>
+    <li><span class="e">🔔</span><span><b>Rappels</b> avant la date de péremption</span></li>
+    <li><span class="e">👨‍👩‍👧</span><span><b>Partage</b> avec ta coloc ou ta famille</span></li>
+  </ul>
+  <p id="invite-hint" class="banner" hidden></p>
+  <button id="btn-google" class="btn google">
+    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+    Continuer avec Google
+  </button>
+  <small>Gratuit, sans pub. Tes données sont chiffrées et visibles uniquement par les membres de ton foyer. <a href="privacy.html">Confidentialité</a> · <a href="https://github.com/Bommer5/frigo-zero" target="_blank" rel="noopener">Code source</a></small>
+</section>
+
+<!-- ============ Application ============ -->
+<div id="app" class="app" hidden>
+  <header class="topbar">
+    <button id="hh-switch" class="hh-switch" aria-haspopup="dialog"><span id="hh-name">Mon frigo</span><svg class="i"><use href="#i-chevron"/></svg></button>
+    <span id="offline" class="offline-pill" hidden>Hors ligne</span>
+    <span class="spacer"></span>
+    <button id="btn-me" class="icon-btn" aria-label="Mon compte"><span id="me-avatar" class="avatar"></span></button>
+  </header>
+
+  <!-- Stock -->
+  <main id="v-stock" class="view">
+    <div id="install-banner" class="banner" hidden></div>
+    <div id="import-banner" class="banner" hidden></div>
+    <label class="search"><svg class="i"><use href="#i-search"/></svg><input id="q" type="search" placeholder="Rechercher un produit" aria-label="Rechercher"></label>
+    <div class="chips" id="loc-chips" role="group" aria-label="Emplacement"></div>
+    <div id="overview" class="overview"></div>
+    <div id="stock-list"></div>
+  </main>
+
+  <!-- Courses -->
+  <main id="v-shop" class="view" hidden>
+    <h2 class="view-title">Liste de courses</h2>
+    <form id="shop-form" class="add-line">
+      <input id="shop-input" class="field" placeholder="Ajouter un article…" autocomplete="off" maxlength="120" aria-label="Article">
+      <button class="btn" aria-label="Ajouter"><svg class="i"><use href="#i-plus"/></svg></button>
     </form>
-    <ul id="shop-list" class="list"></ul>
-    <button id="shop-clear" class="ghost">Supprimer les éléments cochés</button>
-  </section>
+    <div id="shop-list"></div>
+    <button id="shop-clear" class="btn secondary block" style="margin-top:12px" hidden>Retirer les articles cochés</button>
+  </main>
 
-  <section id="tab-stats" hidden>
+  <!-- Bilan -->
+  <main id="v-stats" class="view" hidden>
+    <h2 class="view-title">Bilan anti-gaspi</h2>
     <div id="stats"></div>
-  </section>
-</main>
+  </main>
 
-<button id="fab" class="fab" aria-label="Ajouter un produit">+</button>
+  <!-- Foyer -->
+  <main id="v-home" class="view" hidden>
+    <h2 class="view-title">Foyer</h2>
+    <div class="section-h">Membres</div>
+    <div id="members" class="group"></div>
+    <button id="btn-invite" class="btn block"><svg class="i"><use href="#i-share"/></svg>Inviter quelqu'un</button>
+    <p class="note">Envoie le lien par WhatsApp, SMS… Il est valable 7 jours. La personne se connecte avec Google et rejoint ton frigo.</p>
 
-<dialog id="dlg-item">
-  <form id="item-form" method="dialog">
-    <h2 id="item-title">Ajouter un produit</h2>
-    <div id="scanner-wrap">
-      <div id="reader"></div>
-      <div class="row">
-        <button type="button" id="btn-scan" class="grow">📷 Scanner le code-barres</button>
-        <label class="btn ghost">🖼️ Photo<input type="file" id="scan-file" accept="image/*" hidden></label>
-      </div>
-      <p id="scan-status" class="muted"></p>
+    <div class="section-h">Rappels</div>
+    <div class="group">
+      <label class="setting"><svg class="i"><use href="#i-bell"/></svg><span class="main">Notifications<div class="sub" id="push-sub">Un rappel par jour</div></span><input id="push-toggle" type="checkbox" class="switch"></label>
+      <label class="setting"><span class="main">Prévenir</span>
+        <select id="s-days"><option value="0">Le jour même</option><option value="1">1 jour avant</option><option value="2">2 jours avant</option><option value="3">3 jours avant</option><option value="5">5 jours avant</option><option value="7">1 semaine avant</option></select></label>
+      <label class="setting"><span class="main">Heure du rappel</span><input id="s-hour" type="time" step="900"></label>
     </div>
-    <div class="product">
-      <img id="item-img" alt="" hidden>
-      <div class="grow">
-        <label>Nom<input id="f-name" required placeholder="ex. Yaourt nature"></label>
-        <label>Code-barres<input id="f-code" inputmode="numeric" placeholder="facultatif"></label>
-      </div>
+
+    <div class="section-h">Ce foyer</div>
+    <div class="group">
+      <button id="btn-rename" class="setting"><svg class="i"><use href="#i-edit"/></svg><span class="main">Renommer</span></button>
+      <button id="btn-leave" class="setting danger"><svg class="i"><use href="#i-door"/></svg><span class="main">Quitter ce foyer</span></button>
     </div>
+
+    <div class="section-h">Compte</div>
+    <div class="group">
+      <div class="setting"><span id="me-avatar2" class="avatar"></span><span class="main"><b id="me-name"></b><div class="sub" id="me-email"></div></span></div>
+      <button id="btn-export" class="setting"><svg class="i"><use href="#i-share"/></svg><span class="main">Exporter mes données</span></button>
+      <a class="setting" href="privacy.html" style="color:inherit;text-decoration:none"><svg class="i"><use href="#i-shield"/></svg><span class="main">Confidentialité</span></a>
+      <button id="btn-logout" class="setting"><svg class="i"><use href="#i-logout"/></svg><span class="main">Se déconnecter</span></button>
+      <button id="btn-delete-account" class="setting danger"><svg class="i"><use href="#i-trash"/></svg><span class="main">Supprimer mon compte</span></button>
+    </div>
+    <p class="note" style="text-align:center">Frigo Zéro · open source · données produits <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></p>
+  </main>
+
+  <button id="fab" class="fab"><svg class="i"><use href="#i-scan"/></svg>Ajouter</button>
+
+  <nav class="tabbar" role="tablist">
+    <button role="tab" data-view="stock" aria-selected="true"><svg class="i"><use href="#i-box"/></svg>Stock<span id="badge-stock" class="count" hidden></span></button>
+    <button role="tab" data-view="shop" aria-selected="false"><svg class="i"><use href="#i-cart"/></svg>Courses<span id="badge-shop" class="count" hidden></span></button>
+    <button role="tab" data-view="stats" aria-selected="false"><svg class="i"><use href="#i-chart"/></svg>Bilan</button>
+    <button role="tab" data-view="home" aria-selected="false"><svg class="i"><use href="#i-users"/></svg>Foyer</button>
+  </nav>
+</div>
+
+<!-- ============ Feuille : ajout / édition ============ -->
+<dialog id="sheet-item" class="sheet" aria-labelledby="item-title">
+  <form id="item-form" class="sheet-in" method="dialog" novalidate>
+    <div class="grabber"></div>
+    <div class="sheet-h"><h2 id="item-title">Ajouter un produit</h2><button type="button" class="icon-btn" data-close aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button></div>
+
+    <div id="scan-zone">
+      <div class="scan-box" id="scan-box" hidden><div id="reader"></div><div class="frame"></div></div>
+      <div class="scan-actions">
+        <button type="button" id="btn-scan" class="btn secondary"><svg class="i"><use href="#i-scan"/></svg><span>Scanner</span></button>
+        <label class="btn secondary"><svg class="i"><use href="#i-image"/></svg>Photo<input type="file" id="scan-file" accept="image/*" hidden></label>
+      </div>
+      <p id="scan-status" class="status" role="status"></p>
+    </div>
+
+    <div id="product-preview" class="product-preview" hidden><img id="pp-img" alt=""><div><b id="pp-name"></b><div class="sub" id="pp-code" style="font-size:.8rem;color:var(--text-2)"></div></div></div>
+
+    <label class="lbl" for="f-name">Produit</label>
+    <input id="f-name" class="field" required maxlength="120" placeholder="ex. Yaourt nature" autocomplete="off">
     <div class="quick" id="quick-items"></div>
-    <label>Date de péremption<input id="f-date" type="date" required></label>
+
+    <label class="lbl" for="f-date">Date de péremption</label>
+    <input id="f-date" class="field" type="date" required>
     <div class="quick" id="quick-dates"></div>
-    <div class="row">
-      <label class="grow">Emplacement<select id="f-loc"></select></label>
-      <label class="grow">Quantité<input id="f-qty" type="number" min="1" value="1"></label>
+
+    <label class="lbl">Type de date</label>
+    <div class="seg" id="f-kind" role="group">
+      <button type="button" data-v="dlc" aria-pressed="true">À consommer jusqu'au</button>
+      <button type="button" data-v="ddm" aria-pressed="false">De préférence avant</button>
     </div>
-    <label>Type de date
-      <select id="f-kind"><option value="dlc">À consommer jusqu'au (DLC)</option><option value="ddm">De préférence avant (DDM)</option></select>
-    </label>
-    <label>Note<input id="f-note" placeholder="ex. entamé"></label>
-    <div class="row end">
-      <button type="button" class="ghost" id="item-cancel">Annuler</button>
-      <button id="item-save">Enregistrer</button>
+
+    <label class="lbl">Emplacement</label>
+    <div class="seg" id="f-loc" role="group"></div>
+
+    <div class="two">
+      <div><label class="lbl" for="f-note">Note</label><input id="f-note" class="field" maxlength="200" placeholder="facultatif — ex. entamé"></div>
+      <div><label class="lbl">Quantité</label><div class="stepper"><button type="button" data-step="-1" aria-label="Moins">−</button><output id="f-qty">1</output><button type="button" data-step="1" aria-label="Plus">+</button></div></div>
+    </div>
+
+    <div class="sheet-footer">
+      <button type="button" id="item-delete" class="btn danger" hidden aria-label="Supprimer"><svg class="i"><use href="#i-trash"/></svg></button>
+      <button id="item-save" class="btn">Ajouter</button>
     </div>
   </form>
 </dialog>
 
-<dialog id="dlg-settings">
-  <form method="dialog">
-    <h2>Réglages</h2>
-    <label>Me prévenir
-      <select id="s-days"><option value="1">1 jour avant</option><option value="2">2 jours avant</option><option value="3">3 jours avant</option><option value="5">5 jours avant</option></select>
-    </label>
-    <label>Heure du rappel quotidien<input id="s-hour" type="time" value="18:00"></label>
-    <button type="button" id="btn-notif">🔔 Activer les notifications</button>
-    <p id="notif-status" class="muted"></p>
-    <hr>
-    <h3>Partager le frigo</h3>
-    <p class="muted">Envoie ce lien à ta coloc ou ta famille : il contient ton stock actuel.</p>
-    <button type="button" id="btn-share">🔗 Partager le stock</button>
-    <hr>
-    <h3>Sauvegarde</h3>
-    <div class="row">
-      <button type="button" id="btn-export" class="ghost grow">⬇️ Exporter</button>
-      <label class="btn ghost grow">⬆️ Importer<input type="file" id="import-file" accept="application/json" hidden></label>
-    </div>
-    <p class="muted">Données stockées uniquement sur ton téléphone. Infos produits : <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a> (ODbL).</p>
-    <div class="row end"><button>Fermer</button></div>
-  </form>
+<!-- ============ Feuille : choix du foyer ============ -->
+<dialog id="sheet-hh" class="sheet" aria-labelledby="hh-title">
+  <div class="sheet-in">
+    <div class="grabber"></div>
+    <div class="sheet-h"><h2 id="hh-title">Mes foyers</h2><button type="button" class="icon-btn" data-close aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div id="hh-list" class="group"></div>
+    <form id="hh-create" class="add-line" style="margin-top:14px">
+      <input id="hh-new" class="field" placeholder="Nouveau foyer (ex. Kot, Parents)" maxlength="60" required>
+      <button class="btn" aria-label="Créer"><svg class="i"><use href="#i-plus"/></svg></button>
+    </form>
+  </div>
 </dialog>
 
-<div id="toast" role="status"></div>
+<!-- ============ Feuille : invitation reçue ============ -->
+<dialog id="sheet-join" class="sheet">
+  <div class="sheet-in" style="text-align:center">
+    <div class="grabber"></div>
+    <div style="font-size:3rem">🏠</div>
+    <h2 id="join-title" style="margin:8px 0">Rejoindre un foyer</h2>
+    <p id="join-text" style="color:var(--text-2)"></p>
+    <div class="sheet-footer"><button class="btn secondary" data-close>Plus tard</button><button id="join-ok" class="btn">Rejoindre</button></div>
+  </div>
+</dialog>
 
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-<script src="config.js"></script>
-<script src="app.js"></script>
+<div id="toast" class="toast" role="status" aria-live="polite"><span></span><button hidden></button></div>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+<script type="module" src="js/app.js"></script>
 </body>
 </html>
