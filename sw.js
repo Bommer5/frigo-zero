@@ -1,5 +1,5 @@
 // Service worker : app utilisable hors ligne + réception des rappels push.
-const CACHE = 'fz-v17', IMG_CACHE = 'fz-img';
+const CACHE = 'fz-v18', IMG_CACHE = 'fz-img';
 const ASSETS = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'manifest.webmanifest', 'privacy.html',
   'icons/favicon-32.png', 'icons/icon-192.png'];
 
@@ -30,9 +30,15 @@ self.addEventListener('fetch', (e) => {
 self.addEventListener('push', (e) => {
   let d = { title: 'Frigo Zéro', body: 'Pense à vérifier ton frigo !' };
   try { d = e.data.json(); } catch {}
-  e.waitUntil(self.registration.showNotification(d.title, { body: d.body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', tag: 'fz-daily', renotify: true }));
+  e.waitUntil(self.registration.showNotification(d.title, { body: d.body, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png',
+    tag: d.tag || 'fz-daily', renotify: true, data: { view: d.view || 'stock' } }));
 });
+// Ouvre l'app sur l'écran de la notification (liste de courses pour un ajout aux courses…)
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => cs[0] ? cs[0].focus() : clients.openWindow('./')));
+  const view = e.notification.data?.view || 'stock';
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+    if (!cs[0]) return clients.openWindow(`./?view=${view}`);
+    cs[0].postMessage({ view }); return cs[0].focus();
+  }));
 });

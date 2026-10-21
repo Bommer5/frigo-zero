@@ -160,6 +160,7 @@ function render() {
   $('#me-avatar').outerHTML = avatar(S.profile, 'me-avatar');
   const aiTab = S.ai.allowed && S.profile.ai_tab !== false;
   $('.tabbar [data-view="recipes"]').hidden = !aiTab;
+  $('#btn-voice').hidden = !(S.ai.allowed && S.profile.ai_voice !== false);
   if (S.view === 'recipes' && !aiTab) S.view = 'stock';
   for (const v of ['stock', 'shop', 'stats', 'recipes', 'home']) $('#v-' + v).hidden = S.view !== v;
   document.querySelectorAll('.tabbar button').forEach((b) => b.setAttribute('aria-selected', b.dataset.view === S.view));
@@ -614,8 +615,12 @@ function renderHome() {
   $('#me-email').textContent = S.user.email || '';
   $('#me-avatar2').outerHTML = avatar(S.profile, 'me-avatar2');
   pushUI();
+  $('#n-shop').checked = S.profile.notify_shop !== false;
+  $('#n-stock').checked = !!S.profile.notify_stock;
+  $('#n-hint').hidden = $('#push-toggle').checked;
   $('#ai-settings').hidden = !S.ai.allowed;
   $('#ai-tab-toggle').checked = S.profile.ai_tab !== false;
+  $('#ai-voice-toggle').checked = S.profile.ai_voice !== false;
   $('#admin-settings').hidden = !S.ai.admin;
   if (S.ai.admin) loadAdminUsers();
 }
@@ -824,6 +829,173 @@ function offerLegacyImport() {
   };
 }
 
+// ---------- Assistant vocal (Gemini) ----------
+// Reconnaissance vocale du téléphone (Web Speech) quand elle existe, sinon l'audio est envoyé tel quel à Gemini.
+// La fonction Edge renvoie des actions, exécutées ici avec les droits de l'utilisateur ; les cas douteux demandent confirmation.
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let pending = null, listening = null;
+const clampQty = (n) => Math.min(999, Math.max(1, Math.round(+n) || 1));
+const clampDays = (n) => Math.min(3650, Math.max(0, Math.round(+n) || 0));
+const vstatus = (t) => { $('#v-status').textContent = t; };
+const setMic = (on) => $('#v-mic').classList.toggle('listening', on);
+function vlog(cls, html) {
+  const d = Object.assign(document.createElement('div'), { className: cls, innerHTML: html });
+  $('#v-log').append(d); d.scrollIntoView({ block: 'end', behavior: 'smooth' });
+}
+const doneList = (done) => done.length ? `<ul>${done.map((d) => `<li>${esc(d)}</li>`).join('')}</ul>` : '';
+function speak(text) {
+  if (!text || !window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const u = Object.assign(new SpeechSynthesisUtterance(text), { lang: 'fr-FR' });
+  const v = speechSynthesis.getVoices().find((x) => x.lang?.startsWith('fr')); if (v) u.voice = v;
+  speechSynthesis.speak(u);
+}
+
+$('#btn-voice').onclick = () => { openSheet('#sheet-voice'); if (!$('#v-log').children.length) startListening(); };
+$('#sheet-voice').addEventListener('close', () => stopListening(true));
+$('#v-mic').onclick = () => (listening ? stopListening() : startListening());
+$('#v-form').onsubmit = (e) => { e.preventDefault(); const t = $('#v-text').value.trim(); if (t) { $('#v-text').value = ''; askAssistant({ text: t }); } };
+// Les boutons Oui / Non tranchent sans rappeler l'IA ; une réponse au micro (« oui, mais 2 ») repasse par Gemini.
+$('#v-yes').onclick = async () => {
+  const p = pending; pending = null; $('#v-confirm').hidden = true; vlog('me', 'Oui');
+  const done = await runActions(p?.actions); vlog('bot', "C'est fait." + doneList(done)); speak("C'est fait.");
+  vstatus('Touche le micro pour continuer');
+};
+$('#v-no').onclick = () => {
+  pending = null; $('#v-confirm').hidden = true; vlog('me', 'Non');
+  vlog('bot', 'OK, je ne touche à rien.'); speak('OK, je ne touche à rien.'); vstatus('Touche le micro pour continuer');
+};
+
+async function startListening() {
+  speechSynthesis?.cancel();
+  setMic(true); vstatus("Je t'écoute…");
+  try {
+    if (SR) {
+      const r = Object.assign(new SR(), { lang: 'fr-FR', interimResults: true, continuous: false });
+      let heard = '', denied = false;
+      r.onresult = (e) => { heard = [...e.results].map((x) => x[0].transcript).join(''); vstatus(heard + '…'); };
+      r.onerror = (e) => { denied = /not-allowed|service-not-allowed/.test(e.error); };
+      r.onend = () => {
+        setMic(false); const aborted = listening?.aborted; listening = null;
+        if (aborted) return;
+        if (denied) return vstatus('Micro bloqué : autorise-le dans les réglages, ou écris ta demande.');
+        if (heard.trim()) askAssistant({ text: heard.trim() }); else vstatus("Je n'ai rien entendu. Touche le micro et parle");
+      };
+      listening = { stop: () => r.stop(), abort() { this.aborted = true; r.abort(); } };
+      r.start();
+    } else await record();
+  } catch (e) {
+    setMic(false); listening = null;
+    vstatus(e?.name === 'NotAllowedError' ? 'Micro bloqué : autorise-le dans les réglages, ou écris ta demande.' : 'Le micro ne fonctionne pas ici, écris ta demande.');
+  }
+}
+function stopListening(abort = false) { if (abort) listening?.abort(); else listening?.stop(); }
+// Sans reconnaissance vocale intégrée : on enregistre (20 s max) et Gemini écoute l'audio.
+async function record() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mime = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg'].find((m) => MediaRecorder.isTypeSupported?.(m));
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), chunks = [];
+  rec.ondataavailable = (e) => chunks.push(e.data);
+  const timer = setTimeout(() => rec.state === 'recording' && rec.stop(), 20_000);
+  rec.onstop = async () => {
+    clearTimeout(timer); stopTracks(stream); setMic(false);
+    const aborted = listening?.aborted; listening = null;
+    if (aborted) return;
+    const blob = new Blob(chunks, { type: rec.mimeType });
+    if (blob.size < 2000) return vstatus("Je n'ai rien entendu. Touche le micro et parle");
+    const audio = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    askAssistant({ audio, mime: rec.mimeType });
+  };
+  listening = { stop: () => rec.stop(), abort() { this.aborted = true; rec.stop(); } };
+  rec.start();
+}
+
+async function askAssistant(input) {
+  if (input.text) vlog('me', esc(input.text));
+  $('#v-confirm').hidden = true; $('#v-mic').classList.add('busy'); vstatus('Je réfléchis…');
+  try {
+    const { data, error } = await sb.functions.invoke('assistant', { body: { household_id: S.hid, ...input, pending } });
+    if (error) {
+      const msg = await error.context?.json?.().then((j) => j.error).catch(() => null);
+      throw new Error(msg || error.message);
+    }
+    if (input.audio && data.heard) vlog('me', esc(data.heard));
+    pending = data.confirm;
+    const done = await runActions(data.actions);
+    vlog('bot', esc(data.reply || (done.length ? "C'est fait." : "Je n'ai rien changé.")) + doneList(done));
+    if (pending) { $('#v-question').textContent = pending.question; $('#v-confirm').hidden = false; }
+    speak([data.reply, pending?.question].filter(Boolean).join(' '));
+    vstatus(pending ? 'Réponds oui ou non, au micro ou avec les boutons' : 'Touche le micro pour continuer');
+  } catch (e) {
+    vlog('bot err', esc(navigator.onLine ? e.message : 'Pas de connexion internet'));
+    vstatus('Touche le micro pour réessayer');
+  } finally { $('#v-mic').classList.remove('busy'); }
+}
+
+// Exécute les actions de l'assistant ; renvoie le compte rendu affiché sous sa réponse.
+async function runActions(actions = []) {
+  const done = []; let reload = false, wish = null;
+  for (const a of actions) {
+    const it = a.item_id && S.items.find((i) => i.id === a.item_id);
+    const sh = a.shop_id && S.shop.find((s) => s.id === a.shop_id);
+    try {
+      switch (a.type) {
+        case 'add_item': {
+          const name = a.name.trim().slice(0, 120), n = clampQty(a.quantity), location = LOCS[a.location] ? a.location : 'fridge';
+          const date = plusDays(a.days == null ? 7 : clampDays(a.days));
+          // Même produit, même date, même endroit : on regroupe comme dans le formulaire
+          const same = S.items.find((i) => !i.barcode && i.expires_on === date && i.location === location && i.name.toLowerCase() === name.toLowerCase());
+          if (same) await sb.from('items').update({ quantity: Math.min(999, same.quantity + n) }).eq('id', same.id).throwOnError();
+          else await sb.from('items').insert({ household_id: S.hid, name, quantity: n, location, expires_on: date, date_kind: a.date_kind === 'ddm' ? 'ddm' : 'dlc' }).throwOnError();
+          done.push(`${LOCS[location][0]} ${name} ×${n} ajouté (jusqu'au ${shortDate(date)})`); reload = true; break;
+        }
+        case 'consume': {
+          if (!it) break;
+          const n = Math.min(clampQty(a.quantity), it.quantity), outcome = a.outcome === 'wasted' ? 'wasted' : 'eaten';
+          for (let k = 0; k < n; k++) await rpc('consume_item', { p_item: it.id, p_outcome: outcome });
+          done.push(`${outcome === 'eaten' ? '😋' : '🗑️'} ${it.name} ×${n} ${outcome === 'eaten' ? 'consommé' : 'jeté'}`); reload = true; break;
+        }
+        case 'delete_item':
+          if (!it) break;
+          await sb.from('items').delete().eq('id', it.id).throwOnError();
+          done.push(`❌ ${it.name} retiré du stock`); reload = true; break;
+        case 'update_item': {
+          if (!it) break;
+          const patch = {};
+          if (a.quantity != null) patch.quantity = clampQty(a.quantity);
+          if (a.days != null) patch.expires_on = plusDays(clampDays(a.days));
+          if (LOCS[a.location]) patch.location = a.location;
+          if (!Object.keys(patch).length) break;
+          await sb.from('items').update(patch).eq('id', it.id).throwOnError();
+          done.push(`✏️ ${it.name} modifié`); reload = true; break;
+        }
+        case 'add_shop':
+          await sb.from('shopping_items').insert({ household_id: S.hid, label: a.label.trim().slice(0, 120) }).throwOnError();
+          done.push(`🛒 ${a.label.trim()} ajouté aux courses`); reload = true; break;
+        case 'check_shop':
+          if (!sh) break;
+          await sb.from('shopping_items').update({ done: true }).eq('id', sh.id).throwOnError();
+          done.push(`✅ ${sh.label} coché sur la liste`); reload = true; break;
+        case 'remove_shop':
+          if (!sh) break;
+          await sb.from('shopping_items').delete().eq('id', sh.id).throwOnError();
+          done.push(`🛒 ${sh.label} retiré de la liste`); reload = true; break;
+        case 'recipes': wish = String(a.wish ?? ''); break;
+        case 'navigate': if (VIEWS.includes(a.view)) S.view = a.view; break;
+      }
+    } catch (e) { console.error(e); done.push(`⚠️ Impossible : ${it?.name || sh?.label || a.name || a.label || a.type}`); }
+  }
+  if (reload) { vibrate(20); await loadHousehold().catch(() => {}); }
+  if (wish != null && S.ai.allowed) {
+    S.view = 'recipes'; $('#r-wish').value = wish; $('#sheet-voice').close(); render(); scrollTo(0, 0);
+    askRecipes(wish); done.push('👩‍🍳 Recherche de recettes lancée');
+  } else render();
+  return done;
+}
+$('#ai-voice-toggle').onchange = (e) => saveProfile({ ai_voice: e.target.checked });
+$('#n-shop').onchange = (e) => saveProfile({ notify_shop: e.target.checked });
+$('#n-stock').onchange = (e) => saveProfile({ notify_stock: e.target.checked });
+
 // ---------- Notifications push (Android, et iPhone 16.4+ avec l'app installée) ----------
 const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
@@ -848,7 +1020,7 @@ $('#push-toggle').onchange = async (e) => {
       store.set('fz-push', false);
     }
   } catch (err) { if (err.message !== 'denied') fail(err); }
-  pushUI();
+  pushUI(); $('#n-hint').hidden = $('#push-toggle').checked;
 };
 // Demande d'activation (comme Instagram) : au démarrage si pas encore décidé, puis de nouveau tous les 3 jours après « Plus tard »
 function askNotif() {
@@ -886,4 +1058,10 @@ if (isIOS && !standalone && !store.get('fz-ios-hint')) {
   b.querySelector('button').onclick = () => { b.hidden = true; store.set('fz-ios-hint', true); };
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+// Notification touchée : ouvre l'écran concerné (liste de courses, stock)
+const VIEWS = ['stock', 'shop', 'stats', 'recipes', 'home'];
+if (VIEWS.includes(params.get('view'))) { S.view = params.get('view'); history.replaceState(null, '', BASE_URL); }
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+  navigator.serviceWorker.addEventListener('message', (e) => { if (VIEWS.includes(e.data?.view)) { S.view = e.data.view; render(); } });
+}

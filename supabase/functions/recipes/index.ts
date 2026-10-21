@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
   if (!access) return json({ error: 'Les recettes IA ne sont pas activées pour ton compte.' }, 403);
 
   const since = new Date(Date.now() - 24 * 3600e3).toISOString();
-  const { count } = await admin.from('ai_usage').select('id', { count: 'exact', head: true }).eq('user_id', user.id).gte('created_at', since);
+  const { count } = await admin.from('ai_usage').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('kind', 'recipes').gte('created_at', since);
   if (!isAdmin && (count ?? 0) >= DAILY_LIMIT) return json({ error: `Limite atteinte (${DAILY_LIMIT} demandes par jour). Reviens demain 🙂` }, 429);
 
   const body = await req.json().catch(() => ({}));

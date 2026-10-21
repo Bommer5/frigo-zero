@@ -42,6 +42,7 @@
   <symbol id="i-door" viewBox="0 0 24 24"><path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.6v16.8a1 1 0 0 1-1.2 1L5 21V5.6a2 2 0 0 1 1.5-2l5-1.3a1 1 0 0 1 1.5 1Z"/></symbol>
   <symbol id="i-chef" viewBox="0 0 24 24"><path d="M6 13.9A4 4 0 0 1 7.5 6a5 5 0 0 1 9 0A4 4 0 0 1 18 13.9V20a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1Z"/><path d="M6 17h12"/></symbol>
   <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8Z"/></symbol>
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/></symbol>
 </svg>
 
@@ -71,6 +72,7 @@
     <button id="hh-switch" class="hh-switch" aria-haspopup="dialog"><span id="hh-name">Mon frigo</span><svg class="i"><use href="#i-chevron"/></svg></button>
     <span id="offline" class="offline-pill" hidden>Hors ligne</span>
     <span class="spacer"></span>
+    <button id="btn-voice" class="icon-btn voice-btn" aria-label="Assistant vocal" hidden><svg class="i"><use href="#i-mic"/></svg></button>
     <button id="btn-me" class="icon-btn" aria-label="Mon compte"><span id="me-avatar" class="avatar"></span></button>
   </header>
 
@@ -132,6 +134,12 @@
         <select id="s-days"><option value="0">Le jour même</option><option value="1">1 jour avant</option><option value="2">2 jours avant</option><option value="3">3 jours avant</option><option value="5">5 jours avant</option><option value="7">1 semaine avant</option></select></label>
       <label class="setting"><span class="main">Heure du rappel</span><input id="s-hour" type="time" step="900"></label>
     </div>
+    <div class="section-h">Quand un membre du foyer ajoute…</div>
+    <div class="group">
+      <label class="setting"><svg class="i"><use href="#i-cart"/></svg><span class="main">À la liste de courses<div class="sub">Une notification à chaque ajout</div></span><input id="n-shop" type="checkbox" class="switch"></label>
+      <label class="setting"><svg class="i"><use href="#i-box"/></svg><span class="main">Dans le frigo / le stock<div class="sub">Une notification à chaque produit rangé</div></span><input id="n-stock" type="checkbox" class="switch"></label>
+    </div>
+    <p id="n-hint" class="note" hidden>Active d'abord les notifications ci-dessus pour les recevoir sur ce téléphone.</p>
 
     <div class="section-h">Ce foyer</div>
     <div class="group">
@@ -141,9 +149,10 @@
     </div>
 
     <div id="ai-settings" hidden>
-      <div class="section-h">Recettes IA</div>
+      <div class="section-h">Intelligence artificielle</div>
       <div class="group">
         <label class="setting"><svg class="i"><use href="#i-chef"/></svg><span class="main">Onglet Recettes<div class="sub">Idées de recettes avec ton stock</div></span><input id="ai-tab-toggle" type="checkbox" class="switch"></label>
+        <label class="setting"><svg class="i"><use href="#i-mic"/></svg><span class="main">Assistant vocal<div class="sub">Bouton micro en haut : « j'ai acheté 3 baguettes »</div></span><input id="ai-voice-toggle" type="checkbox" class="switch"></label>
       </div>
     </div>
 
@@ -174,6 +183,26 @@
     <button role="tab" data-view="home" aria-selected="false"><svg class="i"><use href="#i-users"/></svg>Foyer</button>
   </nav>
 </div>
+
+<!-- ============ Feuille : assistant vocal ============ -->
+<dialog id="sheet-voice" class="sheet" aria-labelledby="voice-title">
+  <div class="sheet-in">
+    <div class="grabber"></div>
+    <div class="sheet-h"><h2 id="voice-title">Assistant</h2><button type="button" class="icon-btn" data-close aria-label="Fermer"><svg class="i"><use href="#i-x"/></svg></button></div>
+    <div id="v-log" class="voice-log" aria-live="polite"></div>
+    <div id="v-confirm" class="voice-confirm" hidden>
+      <p id="v-question"></p>
+      <div class="voice-confirm-btns"><button id="v-yes" class="btn">Oui</button><button id="v-no" class="btn secondary">Non</button></div>
+    </div>
+    <button id="v-mic" class="voice-mic" aria-label="Parler"><svg class="i"><use href="#i-mic"/></svg></button>
+    <p id="v-status" class="voice-status">Touche le micro et parle</p>
+    <form id="v-form" class="add-line">
+      <input id="v-text" class="field" placeholder="…ou écris ici" autocomplete="off" maxlength="600" aria-label="Message à l'assistant">
+      <button class="btn" aria-label="Envoyer"><svg class="i"><use href="#i-check"/></svg></button>
+    </form>
+    <p class="note">Ex. « J'ai acheté 3 baguettes et du lait », « j'ai fini les yaourts », « ajoute des œufs aux courses », « une idée de recette avec le poulet ».</p>
+  </div>
+</dialog>
 
 <!-- ============ Feuille : ajout / édition ============ -->
 <dialog id="sheet-item" class="sheet" aria-labelledby="item-title">
