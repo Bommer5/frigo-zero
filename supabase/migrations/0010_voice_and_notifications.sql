@@ -19,9 +19,10 @@ begin
     headers := jsonb_build_object('Content-Type', 'application/json',
       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
     body := jsonb_build_object('table', tg_table_name, 'household_id', new.household_id,
-      'name', case when tg_table_name = 'shopping_items' then new.label else new.name end,
-      'quantity', case when tg_table_name = 'items' then new.quantity else 1 end,
-      'added_by', new.added_by),
+      -- to_jsonb : les deux tables n'ont pas les mêmes colonnes (label / name), new.x planterait sur l'autre
+      'name', coalesce(to_jsonb(new)->>'label', to_jsonb(new)->>'name'),
+      'quantity', coalesce((to_jsonb(new)->>'quantity')::int, 1),
+      'added_by', coalesce(to_jsonb(new)->>'added_by', auth.uid()::text)),
     timeout_milliseconds := 10000);
   return new;
 end $$;
