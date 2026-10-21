@@ -6,7 +6,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const DAILY_LIMIT = 100;
 // Du plus capable au plus léger : on passe au suivant si un modèle est saturé ou indisponible.
-const MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-flash-latest'];
+// (les modèles 2.5 ne sont plus ouverts aux nouveaux comptes ; les « -latest » suivent les nouvelles versions.)
+const MODELS = ['gemini-3.5-flash', 'gemini-flash-latest', 'gemini-3.8-flash', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest'];
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const admin = createClient(SUPABASE_URL, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 const cors = {
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: SYSTEM }] },
         contents: [{ role: 'user', parts }],
-        generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 2000, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.2, maxOutputTokens: 4000 },
       }),
     }).catch(() => null);
     if (!r) continue; // délai dépassé : modèle suivant
